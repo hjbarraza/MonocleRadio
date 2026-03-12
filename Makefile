@@ -47,19 +47,15 @@ app:
 
 dmg: app
 	@echo "[████████████████████████████████████░░░░░] 90% Creating DMG..."
-	@rm -f "$(DMG_PATH)"
-	@if command -v create-dmg >/dev/null 2>&1; then \
-		create-dmg \
-			--volname "$(APP_NAME)" \
-			--window-size 500 300 \
-			--icon "$(APP_NAME).app" 150 150 \
-			--app-drop-link 350 150 \
-			"$(DMG_PATH)" "$(APP_BUNDLE)"; \
-	else \
-		hdiutil create -volname "$(APP_NAME)" \
-			-srcfolder "$(APP_BUNDLE)" \
-			-ov -format UDZO "$(DMG_PATH)"; \
-	fi
+	@rm -rf "$(BUILD_DIR)/dmg-staging" "$(DMG_PATH)"
+	@mkdir -p "$(BUILD_DIR)/dmg-staging"
+	@cp -R "$(APP_BUNDLE)" "$(BUILD_DIR)/dmg-staging/"
+	@ln -sf /Applications "$(BUILD_DIR)/dmg-staging/Applications"
+	@cp README.md "$(BUILD_DIR)/dmg-staging/READ ME FIRST.md"
+	@hdiutil create -volname "$(APP_NAME)" \
+		-srcfolder "$(BUILD_DIR)/dmg-staging" \
+		-ov -format UDZO "$(DMG_PATH)"
+	@rm -rf "$(BUILD_DIR)/dmg-staging"
 	@echo "[████████████████████████████████████████░] 100% Done"
 	@echo ""
 	@echo "✓ $(DMG_PATH)"
