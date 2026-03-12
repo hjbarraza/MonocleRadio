@@ -25,6 +25,8 @@ app:
 	@echo "[████████████████░░░░░░░░░░░░░░░░░░░░░░░░░] 40% Creating .app bundle..."
 	@mkdir -p "$(CONTENTS_DIR)/MacOS" "$(CONTENTS_DIR)/Resources"
 	@cp .build/release/MonocleRadio "$(CONTENTS_DIR)/MacOS/MonocleRadio"
+	@# Copy app icon if built (run scripts/gen_icon.py to generate)
+	@test -f build/icon/AppIcon.icns && cp build/icon/AppIcon.icns "$(CONTENTS_DIR)/Resources/" || true
 	@/usr/libexec/PlistBuddy -c "Clear dict" "$(CONTENTS_DIR)/Info.plist" 2>/dev/null; true
 	@/usr/libexec/PlistBuddy \
 		-c "Add :CFBundleExecutable string MonocleRadio" \
@@ -33,6 +35,7 @@ app:
 		-c "Add :CFBundleVersion string $(VERSION)" \
 		-c "Add :CFBundleShortVersionString string $(VERSION)" \
 		-c "Add :CFBundlePackageType string APPL" \
+		-c "Add :CFBundleIconFile string AppIcon" \
 		-c "Add :LSUIElement bool true" \
 		-c "Add :LSMinimumSystemVersion string 14.0" \
 		-c "Add :NSAppTransportSecurity dict" \

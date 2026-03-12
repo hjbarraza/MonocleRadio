@@ -25,9 +25,22 @@ struct MonocleRadioApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Monocle Radio", systemImage: "radio") {
+        MenuBarExtra {
             PopoverView(viewModel: viewModel)
                 .frame(width: 360, height: 520)
+        } label: {
+            if let url = Bundle.module.url(forResource: "MenuBarIcon", withExtension: "png",
+                                           subdirectory: "Resources"),
+               let nsImage = NSImage(contentsOf: url) {
+                let image: NSImage = {
+                    $0.size = NSSize(width: 18, height: 18)
+                    $0.isTemplate = true
+                    return $0
+                }(nsImage)
+                Image(nsImage: image)
+            } else {
+                Image(systemName: "radio")
+            }
         }
         .menuBarExtraStyle(.window)
     }

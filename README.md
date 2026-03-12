@@ -4,6 +4,8 @@ Native macOS menu bar radio player for [Monocle 24](https://monocle.com/radio/).
 
 Live stream and on-demand episodes — one click from your menu bar.
 
+![Monocle Radio](screenshot.png)
+
 ## Install
 
 **Requirements:** macOS 14 (Sonoma) or later.
@@ -35,7 +37,7 @@ After the first launch, macOS will remember your choice.
 
 ## Usage
 
-The app lives in your menu bar — no Dock icon. Click the 📻 radio icon to open the popover.
+The app lives in your menu bar — no Dock icon. Click the Monocle monogram to open the popover.
 
 ### Controls
 
@@ -65,8 +67,8 @@ The app lives in your menu bar — no Dock icon. Click the 📻 radio icon to op
 ```sh
 git clone https://github.com/hjbarraza/MonocleRadio.git
 cd MonocleRadio
-make app    # → build/Monocle Radio.app (4.5MB)
-make dmg    # → build/MonocleRadio-1.0.0.dmg (2MB)
+make app    # → build/Monocle Radio.app (~5MB)
+make dmg    # → build/MonocleRadio-1.0.0.dmg (~2MB)
 make run    # debug build and run
 ```
 
@@ -74,7 +76,7 @@ Requires Xcode command line tools (`xcode-select --install`).
 
 ## Architecture
 
-5 Swift files, 1 external dependency (SwiftSoup for HTML scraping).
+5 Swift files, 1 external dependency ([SwiftSoup](https://github.com/scinfu/SwiftSoup) for HTML scraping).
 
 ```
 MonocleRadio/

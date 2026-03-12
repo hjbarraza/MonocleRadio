@@ -12,7 +12,8 @@ let package = Package(
             name: "MonocleRadio",
             dependencies: ["SwiftSoup"],
             path: "MonocleRadio",
-            exclude: ["Info.plist", "Assets.xcassets"]
+            exclude: ["Info.plist", "Assets.xcassets"],
+            resources: [.copy("Resources")]
         ),
     ]
 )
