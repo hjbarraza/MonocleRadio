@@ -1,0 +1,18 @@
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "MonocleRadio",
+    platforms: [.macOS(.v14)],
+    dependencies: [
+        .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.7.0"),
+    ],
+    targets: [
+        .executableTarget(
+            name: "MonocleRadio",
+            dependencies: ["SwiftSoup"],
+            path: "MonocleRadio",
+            exclude: ["Info.plist", "Assets.xcassets"]
+        ),
+    ]
+)
