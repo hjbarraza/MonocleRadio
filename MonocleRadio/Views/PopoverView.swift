@@ -154,7 +154,8 @@ private struct BrowserView: View {
                 currentEpisode: viewModel.currentEpisode,
                 isLoading: viewModel.isLoadingEpisodes,
                 error: viewModel.episodeError,
-                isPlaying: viewModel.isPlaying
+                isPlaying: viewModel.isPlaying,
+                streamTitle: viewModel.streamTitle
             ) { episode in
                 if let show = viewModel.selectedShow {
                     viewModel.play(episode, from: show)
@@ -179,16 +180,42 @@ private struct ShowListView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(shows) { show in
-                    ShowRow(
-                        show: show,
-                        isSelected: selectedShow == show,
-                        isNowPlaying: currentShow == show && isPlaying
-                    )
-                    .onTapGesture { onSelect(show) }
+                let live = shows.filter(\.isLive)
+                let onDemand = shows.filter { !$0.isLive }
+
+                if !live.isEmpty {
+                    SectionLabel("LIVE")
+                    ForEach(live) { row(for: $0) }
+                }
+                if !onDemand.isEmpty {
+                    SectionLabel("ON DEMAND")
+                    ForEach(onDemand) { row(for: $0) }
                 }
             }
         }
+    }
+
+    private func row(for show: Show) -> some View {
+        ShowRow(
+            show: show,
+            isSelected: selectedShow == show,
+            isNowPlaying: currentShow == show && isPlaying
+        )
+        .onTapGesture { onSelect(show) }
+    }
+}
+
+private struct SectionLabel: View {
+    let title: String
+    init(_ title: String) { self.title = title }
+    var body: some View {
+        Text(title)
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 3)
     }
 }
 
@@ -196,6 +223,7 @@ private struct ShowRow: View {
     let show: Show
     let isSelected: Bool
     let isNowPlaying: Bool
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -211,22 +239,21 @@ private struct ShowRow: View {
                 Spacer().frame(width: 6)
             }
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(show.name)
-                    .font(.caption)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .lineLimit(1)
-                Text(show.description)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            Text(show.name)
+                .font(.caption)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .lineLimit(1)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? Color.accentColor.opacity(0.12) : .clear)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.12)
+            : isHovered ? Color.primary.opacity(0.04)
+            : .clear
+        )
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -239,39 +266,18 @@ private struct EpisodeListView: View {
     let isLoading: Bool
     let error: String?
     let isPlaying: Bool
+    let streamTitle: String
     let onSelect: (Episode) -> Void
     let onRetry: () -> Void
 
     var body: some View {
         Group {
             if selectedShow == nil {
-                // No show selected
-                VStack {
-                    Spacer()
-                    Text("Select a show")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            } else if selectedShow?.isLive == true {
-                // Live stream — no episodes
-                VStack {
-                    Spacer()
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    Text("Live Stream")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+                centered { Text("Select a show").font(.subheadline).foregroundStyle(.secondary) }
+            } else if let show = selectedShow, show.isLive {
+                LivePane(show: show, streamTitle: streamTitle)
             } else if isLoading {
-                VStack {
-                    Spacer()
-                    ProgressView("Loading...")
-                        .font(.caption)
-                    Spacer()
-                }
+                centered { ProgressView("Loading…").font(.caption) }
             } else if let error {
                 VStack(spacing: 8) {
                     Spacer()
@@ -286,27 +292,13 @@ private struct EpisodeListView: View {
                 }
                 .padding()
             } else if episodes.isEmpty {
-                VStack {
-                    Spacer()
-                    Text("No episodes found")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
+                centered { Text("No episodes found").font(.subheadline).foregroundStyle(.secondary) }
             } else {
-                // Episode list
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        // Header
                         if let show = selectedShow {
-                            Text("EPISODES \u{00B7} \(show.name)")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .padding(.horizontal, 8)
-                                .padding(.top, 6)
-                                .padding(.bottom, 4)
+                            EpisodeHeader(show: show)
                         }
-
                         ForEach(episodes) { episode in
                             EpisodeRow(
                                 episode: episode,
@@ -320,46 +312,129 @@ private struct EpisodeListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    @ViewBuilder
+    private func centered<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack { Spacer(); content(); Spacer() }
+    }
+}
+
+private struct EpisodeHeader: View {
+    let show: Show
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(show.name)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+            Text(show.description)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LivePane: View {
+    let show: Show
+    let streamTitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Circle().fill(.red).frame(width: 7, height: 7)
+                Text("LIVE")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.red)
+            }
+
+            Text(show.name)
+                .font(.headline)
+
+            Text(show.description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !streamTitle.isEmpty {
+                Divider().padding(.vertical, 2)
+                Text("ON AIR")
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.tertiary)
+                Text(streamTitle)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct EpisodeRow: View {
     let episode: Episode
     let isNowPlaying: Bool
+    @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if isNowPlaying {
-                Circle()
-                    .fill(monocleGold)
-                    .frame(width: 6, height: 6)
-            } else {
-                Spacer().frame(width: 6)
-            }
-
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    if !episode.number.isEmpty {
-                        Text(episode.number)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                    Text(episode.title)
-                        .font(.caption)
-                        .fontWeight(isNowPlaying ? .semibold : .regular)
-                        .lineLimit(1)
-                }
-                if !episode.date.isEmpty {
-                    Text(episode.date)
-                        .font(.caption2)
+        HStack(alignment: .top, spacing: 8) {
+            // Leading indicator: now-playing dot, hover ▶, or nothing
+            ZStack {
+                if isNowPlaying {
+                    Circle().fill(monocleGold).frame(width: 6, height: 6)
+                } else if isHovered {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 8))
                         .foregroundStyle(.secondary)
                 }
             }
+            .frame(width: 10, height: 14)
+            .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(episode.title)
+                    .font(.caption)
+                    .fontWeight(isNowPlaying ? .semibold : .regular)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !episode.number.isEmpty || !episode.date.isEmpty {
+                    HStack(spacing: 6) {
+                        if !episode.number.isEmpty {
+                            Text(episode.number)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        if !episode.date.isEmpty {
+                            Text(episode.date)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isNowPlaying ? monocleGold.opacity(0.1) : .clear)
+        .background(
+            isNowPlaying ? monocleGold.opacity(0.1)
+            : isHovered ? Color.primary.opacity(0.05)
+            : .clear
+        )
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -382,10 +457,11 @@ private struct FooterView: View {
             Spacer()
 
             // Launch at Login
-            Toggle("Login", isOn: $launchAtLogin)
+            Toggle("Start at login", isOn: $launchAtLogin)
                 .toggleStyle(.checkbox)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .help("Launch Monocle Radio automatically when you log in")
                 .onChange(of: launchAtLogin) { _, on in
                     try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
                     launchAtLogin = SMAppService.mainApp.status == .enabled

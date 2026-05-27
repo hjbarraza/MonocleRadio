@@ -1,89 +1,76 @@
 #!/usr/bin/env python3
-"""Generate Monocle Radio icons from official Monocle M monogram.
-Creates macOS .icns app icon and menu bar template icons."""
+"""Generate Monocle Radio icons from the source SVG.
+Produces the macOS .icns app icon and template PNGs for the menu bar.
 
-from PIL import Image
-import subprocess
+Requires rsvg-convert (brew install librsvg) and iconutil (Xcode CLT)."""
+
 import os
+import shutil
+import subprocess
+import sys
 
-SRC = os.path.join(os.path.dirname(__file__), "..", "build", "icon", "source.png")
-OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "build", "icon")
-RESOURCES_DIR = os.path.join(os.path.dirname(__file__), "..", "MonocleRadio", "Resources")
-os.makedirs(OUT_DIR, exist_ok=True)
-os.makedirs(RESOURCES_DIR, exist_ok=True)
-
-
-def make_menubar_icon(src_img, size):
-    """Create a template icon for the menu bar (black on transparent).
-    macOS template images: black pixels become white in dark mode automatically."""
-    img = src_img.resize((size, size), Image.LANCZOS)
-    # Convert to RGBA, make white pixels transparent, keep black
-    pixels = img.load()
-    for y in range(size):
-        for x in range(size):
-            r, g, b, a = pixels[x, y]
-            # Brightness threshold — dark pixels become black, light become transparent
-            brightness = (r + g + b) / 3
-            if brightness > 128:
-                pixels[x, y] = (0, 0, 0, 0)       # transparent
-            else:
-                pixels[x, y] = (0, 0, 0, a)        # black, keep alpha
-    return img
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(ROOT, "assets", "monocle-logo.svg")
+OUT_DIR = os.path.join(ROOT, "build", "icon")
+RESOURCES_DIR = os.path.join(ROOT, "MonocleRadio", "Resources")
 
 
-def create_iconset(src_img):
-    """Generate .iconset folder with all required sizes, then convert to .icns."""
-    iconset_dir = os.path.join(OUT_DIR, "AppIcon.iconset")
-    os.makedirs(iconset_dir, exist_ok=True)
-
-    # Required sizes for macOS .icns
-    sizes = [
-        (16, 1), (16, 2),
-        (32, 1), (32, 2),
-        (128, 1), (128, 2),
-        (256, 1), (256, 2),
-        (512, 1), (512, 2),
-    ]
-
-    total = len(sizes) + 2  # +2 for menubar icons
-    for i, (size, scale) in enumerate(sizes):
-        px = size * scale
-        img = src_img.resize((px, px), Image.LANCZOS)
-        suffix = f"_{size}x{size}" + ("@2x" if scale == 2 else "")
-        path = os.path.join(iconset_dir, f"icon{suffix}.png")
-        img.save(path)
-        pct = int((i + 1) / total * 100)
-        bar = "█" * (pct // 2) + "░" * (50 - pct // 2)
-        print(f"[{bar}] {pct}% icon{suffix}.png ({px}x{px})")
-
-    # Convert to .icns
-    icns_path = os.path.join(OUT_DIR, "AppIcon.icns")
+def render_svg(svg: str, px: int, out_path: str) -> None:
+    """Render an SVG string to a square PNG at the given pixel size."""
     subprocess.run(
-        ["iconutil", "-c", "icns", iconset_dir, "-o", icns_path],
-        check=True
+        ["rsvg-convert", "-w", str(px), "-h", str(px), "-o", out_path],
+        input=svg.encode("utf-8"),
+        check=True,
     )
-    print(f"\n✓ {icns_path}")
 
-    # Menu bar template icons (18pt @ 1x and 2x)
-    for scale in [1, 2]:
+
+def template_variant(svg: str) -> str:
+    """Strip the black background and recolor the mark black on transparent,
+    so macOS can treat it as a template image (auto-inverts in dark menu bars)."""
+    out = svg.replace('<rect width="512" height="512" fill="#000"/>', "")
+    return out.replace('fill="#fff"', 'fill="#000"')
+
+
+def main() -> None:
+    if not os.path.exists(SRC):
+        sys.exit(f"Source SVG not found at {SRC}")
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(RESOURCES_DIR, exist_ok=True)
+
+    with open(SRC, "r", encoding="utf-8") as f:
+        svg_full = f.read()
+    svg_template = template_variant(svg_full)
+
+    # App icon: render full SVG at every size macOS expects, then pack into .icns.
+    iconset = os.path.join(OUT_DIR, "AppIcon.iconset")
+    os.makedirs(iconset, exist_ok=True)
+    sizes = [(16, 1), (16, 2), (32, 1), (32, 2),
+             (128, 1), (128, 2), (256, 1), (256, 2),
+             (512, 1), (512, 2)]
+    for size, scale in sizes:
+        px = size * scale
+        suffix = f"_{size}x{size}" + ("@2x" if scale == 2 else "")
+        out = os.path.join(iconset, f"icon{suffix}.png")
+        render_svg(svg_full, px, out)
+        print(f"✓ icon{suffix}.png ({px}x{px})")
+
+    icns = os.path.join(OUT_DIR, "AppIcon.icns")
+    subprocess.run(["iconutil", "-c", "icns", iconset, "-o", icns], check=True)
+    print(f"✓ {icns}")
+
+    # Menu bar: 1x/2x/3x PNGs. SwiftUI's Image(nsImage:) doesn't reliably preserve
+    # PDF vector data through the MenuBarExtra pipeline, so we bundle the rasters
+    # macOS would pick from an asset catalog and assemble them into a multi-rep
+    # NSImage in Swift. Base 18pt × scale.
+    for scale in (1, 2, 3):
         px = 18 * scale
-        img = make_menubar_icon(src_img, px)
-        name = f"MenuBarIcon{'@2x' if scale == 2 else ''}.png"
-        # Save to build dir
-        path = os.path.join(OUT_DIR, name)
-        img.save(path)
-        # Also copy to Resources for SPM bundling
-        res_path = os.path.join(RESOURCES_DIR, name)
-        img.save(res_path)
+        name = f"MenuBarIcon{'' if scale == 1 else f'@{scale}x'}.png"
+        out = os.path.join(OUT_DIR, name)
+        render_svg(svg_template, px, out)
+        shutil.copy(out, os.path.join(RESOURCES_DIR, name))
         print(f"✓ {name} ({px}x{px})")
 
 
 if __name__ == "__main__":
-    if not os.path.exists(SRC):
-        print(f"Source image not found at {SRC}")
-        print("Download it first: curl -o build/icon/source.png <url>")
-        exit(1)
-
-    src = Image.open(SRC).convert("RGBA")
-    create_iconset(src)
-    print("\nDone! Icons generated and copied to MonocleRadio/Resources/")
+    main()
