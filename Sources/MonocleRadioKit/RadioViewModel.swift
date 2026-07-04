@@ -5,6 +5,8 @@ import SwiftUI
 import MediaPlayer
 #if os(macOS)
 import AppKit
+#elseif canImport(UIKit)
+import UIKit
 #endif
 
 /// Single source of truth for the entire app. Owns AudioEngine, episode cache,
@@ -34,9 +36,15 @@ public class RadioViewModel {
     private let cacheTTL: TimeInterval = 30 * 60  // 30 minutes
 
     public init() {
+        #if os(macOS)
         let saved = UserDefaults.standard.double(forKey: "volume")
         self.volume = saved > 0 ? saved : 75
         engine.volume = Float(self.volume / 100)
+        #else
+        // iOS: volume is the hardware buttons' job — play at full player volume
+        self.volume = 100
+        engine.volume = 1.0
+        #endif
         setupMediaKeys()
 
         #if os(macOS)
@@ -75,6 +83,8 @@ public class RadioViewModel {
         currentShow = shows.first
         currentEpisode = nil
         engine.play(url: Show.liveStreamURL, live: true)
+        updateCommandAvailability()
+        loadArtwork(for: currentShow?.coverURL)
         updateNowPlaying()
     }
 
@@ -83,11 +93,36 @@ public class RadioViewModel {
         currentShow = show
         currentEpisode = episode
         engine.play(url: url, live: false)
+        updateCommandAvailability()
+        loadArtwork(for: show.coverURL)
         updateNowPlaying()
     }
 
     public func togglePlayPause() {
+        // Nothing loaded yet (iOS launches with live selected but paused, or
+        // playback was stopped) — start whatever is current instead of
+        // toggling a nonexistent player item.
+        guard engine.hasCurrentItem else {
+            if let ep = currentEpisode, let show = currentShow {
+                play(ep, from: show)
+            } else {
+                playLive()
+            }
+            return
+        }
         engine.togglePlayPause()
+        updateNowPlaying()
+    }
+
+    /// Seek to an absolute position within the current on-demand episode.
+    public func seek(to seconds: TimeInterval) {
+        engine.seek(to: seconds)
+        updateNowPlaying()
+    }
+
+    /// Skip forward/backward within the current on-demand episode.
+    public func skip(by seconds: TimeInterval) {
+        engine.skip(by: seconds)
         updateNowPlaying()
     }
 
@@ -164,9 +199,44 @@ public class RadioViewModel {
             return .success
         }
 
+        // Skip ±15s and lock screen scrubbing (on-demand only; gated per-mode
+        // in updateCommandAvailability and re-checked in the handlers)
+        center.skipForwardCommand.preferredIntervals = [15]
+        center.skipForwardCommand.addTarget { [weak self] _ in
+            guard let self, !self.isLive else { return .commandFailed }
+            self.skip(by: 15)
+            return .success
+        }
+
+        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipBackwardCommand.addTarget { [weak self] _ in
+            guard let self, !self.isLive else { return .commandFailed }
+            self.skip(by: -15)
+            return .success
+        }
+
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let self, !self.isLive,
+                  let event = event as? MPChangePlaybackPositionCommandEvent
+            else { return .commandFailed }
+            self.seek(to: event.positionTime)
+            return .success
+        }
+
         // Disable unsupported commands
         center.nextTrackCommand.isEnabled = false
         center.previousTrackCommand.isEnabled = false
+
+        updateCommandAvailability()
+    }
+
+    /// Skip/scrub only make sense for on-demand episodes, not the live stream.
+    private func updateCommandAvailability() {
+        let center = MPRemoteCommandCenter.shared()
+        let onDemand = engine.hasCurrentItem && !isLive
+        center.skipForwardCommand.isEnabled = onDemand
+        center.skipBackwardCommand.isEnabled = onDemand
+        center.changePlaybackPositionCommand.isEnabled = onDemand
     }
 
     // MARK: - Now Playing Info Center
@@ -186,9 +256,13 @@ public class RadioViewModel {
             MPMediaItemPropertyArtist: "Monocle 24",
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: engine.elapsed,
+            MPNowPlayingInfoPropertyIsLiveStream: isLive,
         ]
         if engine.duration > 0 {
             info[MPMediaItemPropertyPlaybackDuration] = engine.duration
+        }
+        if let artwork {
+            info[MPMediaItemPropertyArtwork] = artwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
@@ -196,6 +270,32 @@ public class RadioViewModel {
         // playbackState is macOS-only; iOS infers state from playbackRate
         MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
         #endif
+    }
+
+    // MARK: - Lock Screen / Control Center Artwork
+
+    @ObservationIgnored private var artworkURL: URL?
+    @ObservationIgnored private var artwork: MPMediaItemArtwork?
+
+    /// Fetch the current show's cover once per show change and republish
+    /// Now Playing info with it. Cached by URL; a stale fetch (user switched
+    /// shows mid-download) is discarded.
+    private func loadArtwork(for url: URL?) {
+        guard url != artworkURL else { return }
+        artworkURL = url
+        artwork = nil
+        guard let url else { return }
+        Task { @MainActor in
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  url == self.artworkURL else { return }
+            #if canImport(UIKit)
+            guard let image = UIImage(data: data) else { return }
+            #elseif canImport(AppKit)
+            guard let image = NSImage(data: data) else { return }
+            #endif
+            self.artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            self.updateNowPlaying()
+        }
     }
 
     // MARK: - Sleep/Wake (macOS)
