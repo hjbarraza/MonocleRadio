@@ -54,11 +54,85 @@ struct ContentView: View {
 
     var body: some View {
         TabView {
+            CoverPage(viewModel: viewModel)
             LivePage(viewModel: viewModel)
             ShowsPage(viewModel: viewModel)
             NowPlayingView()   // system player: volume crown, route picker
         }
         .tabViewStyle(.verticalPage)
+    }
+}
+
+// MARK: - Cover (full-bleed current artwork, tap to play/pause)
+
+private struct CoverPage: View {
+    @Bindable var viewModel: RadioViewModel
+
+    private var artURL: URL? {
+        if let episode = viewModel.currentEpisode, let image = episode.imageURL {
+            return image
+        }
+        return viewModel.currentCoverURL
+    }
+
+    private var titleLine: String {
+        if !viewModel.subtitle.isEmpty { return viewModel.subtitle }
+        return viewModel.currentShow?.name ?? "Monocle 24"
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                AsyncImage(url: artURL) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        Color.white.opacity(0.06)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
+
+                LinearGradient(
+                    colors: [.black.opacity(0.85), .black.opacity(0.35), .clear],
+                    startPoint: .bottom, endPoint: .center
+                )
+                .frame(height: geo.size.height * 0.6)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        if viewModel.isLive {
+                            Circle()
+                                .fill(viewModel.isPlaying ? Color.monocleRed : Color.secondary)
+                                .frame(width: 6, height: 6)
+                        }
+                        Kicker(
+                            text: viewModel.isBuffering ? "Loading"
+                                : viewModel.isPlaying ? (viewModel.isLive ? "On Air" : "Playing")
+                                : "Paused",
+                            color: viewModel.isLive && viewModel.isPlaying ? .monocleRed : .monocleGold
+                        )
+                        if !viewModel.isPlaying && !viewModel.isBuffering {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.paperWhite.opacity(0.7))
+                        }
+                    }
+                    Text(titleLine)
+                        .font(.system(.footnote, design: .serif).weight(.semibold))
+                        .foregroundStyle(Color.paperWhite)
+                        .lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+            }
+        }
+        .ignoresSafeArea()
+        .contentShape(Rectangle())
+        .onTapGesture { viewModel.togglePlayPause() }
+        .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
