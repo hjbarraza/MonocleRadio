@@ -59,7 +59,7 @@ final class AudioSessionController {
             wasPlayingBeforeInterruption = viewModel.isPlaying
             if viewModel.isPlaying { viewModel.togglePlayPause() }
         case .ended:
-            let optionsValue = userInfo?[AVAudioSessionInterruptionOptionsKey] as? UInt ?? 0
+            let optionsValue = userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             if wasPlayingBeforeInterruption, options.contains(.shouldResume) {
                 if viewModel.isLive {
