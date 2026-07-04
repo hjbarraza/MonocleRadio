@@ -6,6 +6,7 @@ import MonocleRadioKit
 
 struct MiniPlayerBar: View {
     @Bindable var viewModel: RadioViewModel
+    let namespace: Namespace.ID
     let onExpand: () -> Void
 
     var body: some View {
@@ -23,12 +24,13 @@ struct MiniPlayerBar: View {
 
             HStack(spacing: 12) {
                 CoverArt(url: viewModel.currentCoverURL, width: 53)
+                    .matchedGeometryEffect(id: "player-artwork", in: namespace)
 
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
                         if viewModel.isLive {
                             Circle()
-                                .fill(viewModel.isPlaying ? Color.red : Color.secondary)
+                                .fill(viewModel.isPlaying ? Color.monocleRed : Color.secondary)
                                 .frame(width: 6, height: 6)
                         }
                         Text(viewModel.currentShow?.name ?? "Monocle 24")
@@ -43,7 +45,10 @@ struct MiniPlayerBar: View {
 
                 Spacer(minLength: 8)
 
-                Button { viewModel.togglePlayPause() } label: {
+                Button {
+                    Haptics.play()
+                    viewModel.togglePlayPause()
+                } label: {
                     if viewModel.isBuffering {
                         ProgressView()
                             .frame(width: 44, height: 44)

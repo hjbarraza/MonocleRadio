@@ -1,5 +1,6 @@
-// NowPlayingView.swift — full player sheet: adaptive layout, blurred-artwork
+// NowPlayingView.swift — full player overlay: adaptive layout, blurred-artwork
 // ambiance, seek, skip, sleep timer, AirPlay, ambient mode (iPad)
+// Expands from the mini bar via matched geometry; drag down to collapse.
 // Monocle Radio — iOS player for Monocle 24
 
 import SwiftUI
@@ -8,49 +9,101 @@ import MonocleRadioKit
 
 struct NowPlayingView: View {
     @Bindable var viewModel: RadioViewModel
+    let namespace: Namespace.ID
+    let onCollapse: () -> Void
+
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0
+    @State private var lastDetentMinute = -1
     @State private var showAmbient = false
+    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
             let wide = geo.size.width > geo.size.height
+            let dragProgress = min(max(dragOffset / geo.size.height, 0), 1)
 
-            Group {
-                if wide {
-                    HStack(spacing: 40) {
-                        artwork(in: geo, wide: true)
-                        VStack(spacing: 24) {
+            VStack(spacing: 0) {
+                grabber
+
+                Group {
+                    if wide {
+                        HStack(spacing: 40) {
+                            artwork(in: geo, wide: true)
+                            VStack(spacing: 24) {
+                                titleBlock
+                                statusOrScrubber
+                                transportControls
+                                utilityRow
+                            }
+                            .frame(maxWidth: 420)
+                        }
+                        .padding(32)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        VStack(spacing: 26) {
+                            Spacer(minLength: 8)
+                            artwork(in: geo, wide: false)
                             titleBlock
                             statusOrScrubber
                             transportControls
                             utilityRow
+                            Spacer(minLength: 8)
                         }
-                        .frame(maxWidth: 420)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .padding(32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    VStack(spacing: 26) {
-                        Spacer(minLength: 8)
-                        artwork(in: geo, wide: false)
-                        titleBlock
-                        statusOrScrubber
-                        transportControls
-                        utilityRow
-                        Spacer(minLength: 8)
-                    }
-                    .frame(maxWidth: .infinity)
                 }
             }
+            .background(ArtworkAmbiance(url: viewModel.currentCoverURL))
+            .clipShape(RoundedRectangle(cornerRadius: dragOffset > 0 ? 24 : 0))
+            .scaleEffect(1 - dragProgress * 0.06)
+            .offset(y: dragOffset)
+            .gesture(collapseDrag(height: geo.size.height))
         }
-        .background(ArtworkAmbiance(url: viewModel.currentCoverURL))
         .environment(\.colorScheme, .dark)
-        .presentationDragIndicator(.visible)
+        .ignoresSafeArea(edges: .bottom)
         .fullScreenCover(isPresented: $showAmbient) {
             AmbientView(viewModel: viewModel)
         }
+    }
+
+    // MARK: - Collapse gesture
+
+    private var grabber: some View {
+        Capsule()
+            .fill(Color.paperWhite.opacity(0.35))
+            .frame(width: 36, height: 5)
+            .padding(.top, 14)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture { collapse() }
+            .accessibilityLabel("Close player")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private func collapseDrag(height: CGFloat) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                dragOffset = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                let projected = value.predictedEndTranslation.height
+                if dragOffset > height * 0.25 || projected > height * 0.6 {
+                    collapse()
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        dragOffset = 0
+                    }
+                }
+            }
+    }
+
+    private func collapse() {
+        Haptics.tick()
+        dragOffset = 0
+        onCollapse()
     }
 
     // MARK: - Artwork
@@ -60,6 +113,7 @@ struct NowPlayingView: View {
             ? min(geo.size.width * 0.45, 460)
             : min(geo.size.width - 72, geo.size.height * 0.55 * CoverArt.aspect, 460)
         return CoverArt(url: viewModel.currentCoverURL, width: width, cornerRadius: 12)
+            .matchedGeometryEffect(id: "player-artwork", in: namespace)
             .shadow(color: .black.opacity(0.45), radius: 18, y: 10)
             .overlay {
                 if viewModel.isBuffering {
@@ -109,6 +163,7 @@ struct NowPlayingView: View {
             ) { editing in
                 if editing {
                     scrubProgress = viewModel.progress
+                    lastDetentMinute = -1
                 } else {
                     viewModel.seek(to: scrubProgress * viewModel.engine.duration)
                 }
@@ -116,6 +171,15 @@ struct NowPlayingView: View {
             }
             .tint(Color.monocleGold)
             .accessibilityLabel("Playback position")
+            .onChange(of: scrubProgress) { _, progress in
+                // Minute-mark detents while scrubbing — the dial clicks
+                guard isScrubbing, viewModel.engine.duration > 0 else { return }
+                let minute = Int(progress * viewModel.engine.duration / 60)
+                if minute != lastDetentMinute {
+                    if lastDetentMinute >= 0 { Haptics.detent() }
+                    lastDetentMinute = minute
+                }
+            }
 
             HStack {
                 Text(viewModel.elapsedString)
@@ -134,7 +198,10 @@ struct NowPlayingView: View {
     private var transportControls: some View {
         HStack(spacing: 44) {
             if !viewModel.isLive {
-                Button { viewModel.skip(by: -15) } label: {
+                Button {
+                    Haptics.tick()
+                    viewModel.skip(by: -15)
+                } label: {
                     Image(systemName: "gobackward.15")
                         .font(.title)
                         .frame(width: 52, height: 52)
@@ -142,7 +209,10 @@ struct NowPlayingView: View {
                 .accessibilityLabel("Skip back 15 seconds")
             }
 
-            Button { viewModel.togglePlayPause() } label: {
+            Button {
+                Haptics.play()
+                viewModel.togglePlayPause()
+            } label: {
                 Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 68))
                     .contentTransition(.symbolEffect(.replace))
@@ -150,7 +220,10 @@ struct NowPlayingView: View {
             .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
 
             if !viewModel.isLive {
-                Button { viewModel.skip(by: 15) } label: {
+                Button {
+                    Haptics.tick()
+                    viewModel.skip(by: 15)
+                } label: {
                     Image(systemName: "goforward.15")
                         .font(.title)
                         .frame(width: 52, height: 52)
@@ -190,7 +263,10 @@ struct NowPlayingView: View {
                 Button("Cancel timer", role: .destructive) { viewModel.cancelSleepTimer() }
             }
             ForEach([15, 30, 45, 60], id: \.self) { minutes in
-                Button("\(minutes) minutes") { viewModel.startSleepTimer(minutes: minutes) }
+                Button("\(minutes) minutes") {
+                    Haptics.success()
+                    viewModel.startSleepTimer(minutes: minutes)
+                }
             }
         } label: {
             HStack(spacing: 5) {

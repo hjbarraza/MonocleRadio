@@ -123,6 +123,7 @@ private struct LiveHero: View {
                 Spacer(minLength: 8)
 
                 Button {
+                    Haptics.play()
                     if viewModel.currentShow == show {
                         viewModel.togglePlayPause()
                     } else {
@@ -168,6 +169,7 @@ private struct ContinueListeningRow: View {
 
     var body: some View {
         Button {
+            Haptics.play()
             viewModel.resumeContinueListening()
         } label: {
             HStack(spacing: 12) {
