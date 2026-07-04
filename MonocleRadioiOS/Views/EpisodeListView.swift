@@ -180,12 +180,29 @@ struct LiveDetailView: View {
                             .foregroundStyle(Color.paperWhite.opacity(0.65))
                     }
 
-                    if !viewModel.streamTitle.isEmpty {
+                    if !viewModel.streamTitle.isEmpty || viewModel.onAirNow != nil {
                         VStack(alignment: .leading, spacing: 4) {
                             Kicker(text: "On Air", color: Color.monocleGold)
-                            Text(viewModel.streamTitle)
+                            Text(viewModel.streamTitle.isEmpty
+                                 ? (viewModel.onAirNow?.title ?? "")
+                                 : viewModel.streamTitle)
                                 .font(.system(.headline, design: .serif))
                                 .foregroundStyle(Color.paperWhite)
+                        }
+                    }
+
+                    if let next = viewModel.upNext {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Kicker(text: "Up Next")
+                            HStack(spacing: 8) {
+                                Text(next.time, format: .dateTime.hour().minute())
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.monocleGold)
+                                Text(next.title)
+                                    .font(.system(.subheadline, design: .serif))
+                                    .foregroundStyle(Color.paperWhite.opacity(0.85))
+                            }
                         }
                     }
 
@@ -224,5 +241,6 @@ struct LiveDetailView: View {
         .navigationTitle("Monocle 24")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .task { viewModel.loadSchedule() }
     }
 }

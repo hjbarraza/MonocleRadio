@@ -19,6 +19,8 @@ targets:
     dependencies:
       - package: MonocleRadioKit
         product: MonocleRadioKit
+      - target: MonocleRadioWidgets
+        embed: true
     info:
       path: MonocleRadioiOS/Info.plist
       properties:
@@ -26,6 +28,7 @@ targets:
         CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
         UIBackgroundModes: [audio]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations~iphone:
@@ -43,6 +46,30 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_VERSION: "5.9"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  MonocleRadioWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - MonocleRadioWidgets
+    dependencies:
+      - package: MonocleRadioKit
+        product: MonocleRadioKit
+    info:
+      path: MonocleRadioWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Monocle Radio
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.monocle.radio.ios.widgets
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
         SWIFT_VERSION: "5.9"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"

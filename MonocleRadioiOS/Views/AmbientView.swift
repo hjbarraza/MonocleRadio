@@ -48,7 +48,10 @@ struct AmbientView: View {
                             .padding(.horizontal, 48)
                     }
 
-                    Button { viewModel.togglePlayPause() } label: {
+                    Button {
+                        Haptics.play()
+                        viewModel.togglePlayPause()
+                    } label: {
                         if viewModel.isBuffering {
                             ProgressView()
                                 .tint(Color.paperWhite)
@@ -63,6 +66,20 @@ struct AmbientView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
 
+                    if viewModel.isLive, let next = viewModel.upNext {
+                        HStack(spacing: 8) {
+                            Kicker(text: "Up Next", color: Color.paperWhite.opacity(0.5))
+                            Text(next.time, format: .dateTime.hour().minute())
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.monocleGold)
+                            Text(next.title)
+                                .font(.system(.caption, design: .serif))
+                                .foregroundStyle(Color.paperWhite.opacity(0.75))
+                        }
+                        .padding(.top, 4)
+                    }
+
                     Spacer()
                 }
             }
@@ -70,6 +87,7 @@ struct AmbientView: View {
         .contentShape(Rectangle())
         .onTapGesture { dismiss() }
         .statusBarHidden()
+        .task { viewModel.loadSchedule() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
         .accessibilityAction(.escape) { dismiss() }
