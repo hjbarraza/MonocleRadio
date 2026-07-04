@@ -78,12 +78,18 @@ Requires Xcode command line tools (`xcode-select --install`).
 
 5 Swift files, 1 external dependency ([SwiftSoup](https://github.com/scinfu/SwiftSoup) for HTML scraping).
 
+The playback core lives in a shared SwiftPM library (`MonocleRadioKit`) so the
+macOS app and the planned iOS/iPadOS app ([plan](docs/IOS_IPADOS_PLAN.md))
+build from the same code.
+
 ```
-MonocleRadio/
-├── MonocleRadioApp.swift     # @main — MenuBarExtra scene
+Sources/MonocleRadioKit/      # shared core (macOS + iOS)
 ├── AudioEngine.swift         # AVPlayer — streaming, ICY metadata, auto-reconnect
 ├── RadioViewModel.swift      # @Observable — state, media keys, Now Playing
-├── Models.swift              # Show/Episode catalog + SwiftSoup scraper
+└── Models.swift              # Show/Episode catalog + SwiftSoup scraper
+
+MonocleRadio/                 # macOS menu bar app
+├── MonocleRadioApp.swift     # @main — MenuBarExtra scene
 └── Views/
     └── PopoverView.swift     # All UI in one file
 ```

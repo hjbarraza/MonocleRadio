@@ -3,6 +3,7 @@
 
 import SwiftUI
 import AppKit
+import MonocleRadioKit
 
 /// Checks for an existing instance on launch. If found, activates it and exits.
 private func ensureSingleInstance() {

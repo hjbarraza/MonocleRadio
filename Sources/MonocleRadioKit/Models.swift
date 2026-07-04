@@ -1,20 +1,20 @@
 // Models.swift — Show/Episode data, catalog, and episode scraper
-// Monocle Radio — macOS menu bar player for Monocle 24
+// MonocleRadioKit — shared core for the macOS and iOS Monocle Radio apps
 
 import Foundation
 import SwiftSoup
 
 // MARK: - Show
 
-struct Show: Identifiable, Hashable {
-    var id: String { slug.isEmpty ? "live" : slug }
-    let name: String
-    let slug: String
-    let description: String
-    let coverURL: URL?
-    let isLive: Bool
+public struct Show: Identifiable, Hashable {
+    public var id: String { slug.isEmpty ? "live" : slug }
+    public let name: String
+    public let slug: String
+    public let description: String
+    public let coverURL: URL?
+    public let isLive: Bool
 
-    init(_ name: String, _ slug: String, _ description: String, _ coverPath: String, isLive: Bool = false) {
+    public init(_ name: String, _ slug: String, _ description: String, _ coverPath: String, isLive: Bool = false) {
         self.name = name
         self.slug = slug
         self.description = description
@@ -23,13 +23,13 @@ struct Show: Identifiable, Hashable {
     }
 
     // Monocle 24 live AAC stream
-    static let liveStreamURL = URL(string:
+    public static let liveStreamURL = URL(string:
         "https://playerservices.streamtheworld.com/api/livestream-redirect/MONOCLE_24AAC.aac")!
 
     static let coverBase = "https://monocle.com/wp-content/uploads/"
 
     /// Full catalog: live stream + 24 on-demand shows
-    static func all() -> [Show] {
+    public static func all() -> [Show] {
         let b = coverBase
         return [
             Show("Monocle 24 (Live)", "", "24/7 live radio",
@@ -88,15 +88,15 @@ struct Show: Identifiable, Hashable {
 
 // MARK: - Episode
 
-struct Episode: Identifiable, Hashable {
-    var id: String { audioURL?.absoluteString ?? "\(title)-\(number)" }
-    let title: String
-    let audioURL: URL?
-    let number: String
-    let date: String
-    let description: String
+public struct Episode: Identifiable, Hashable {
+    public var id: String { audioURL?.absoluteString ?? "\(title)-\(number)" }
+    public let title: String
+    public let audioURL: URL?
+    public let number: String
+    public let date: String
+    public let description: String
 
-    init(title: String, audioURL: URL? = nil, number: String = "", date: String = "", description: String = "") {
+    public init(title: String, audioURL: URL? = nil, number: String = "", date: String = "", description: String = "") {
         self.title = title
         self.audioURL = audioURL
         self.number = number
@@ -109,7 +109,7 @@ struct Episode: Identifiable, Hashable {
 
 extension Show {
     /// Scrape episode titles and Omny.fm MP3 URLs from the show page
-    func fetchEpisodes() async throws -> [Episode] {
+    public func fetchEpisodes() async throws -> [Episode] {
         guard !slug.isEmpty else { return [] }
 
         let url = URL(string: "https://monocle.com/radio/shows/\(slug)/")!
