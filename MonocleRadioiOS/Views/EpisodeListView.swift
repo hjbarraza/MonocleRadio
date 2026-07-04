@@ -39,6 +39,7 @@ struct EpisodeListView: View {
                             isNowPlaying: viewModel.currentEpisode == episode && viewModel.isPlaying,
                             isBuffering: viewModel.currentEpisode == episode && viewModel.isBuffering
                         ) {
+                            Haptics.play()
                             viewModel.play(episode, from: show)
                         }
                         .listRowBackground(Color.paper)
@@ -189,6 +190,7 @@ struct LiveDetailView: View {
                     }
 
                     Button {
+                        Haptics.play()
                         if viewModel.currentShow == show {
                             viewModel.togglePlayPause()
                         } else {

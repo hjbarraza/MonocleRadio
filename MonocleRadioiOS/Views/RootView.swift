@@ -10,32 +10,47 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var showNowPlaying = false
     @State private var audioSession: AudioSessionController?
+    @Namespace private var playerNamespace
+
+    /// The player expansion spring — snappy up, settled landing.
+    static let expand = Animation.spring(response: 0.42, dampingFraction: 0.86)
 
     var body: some View {
-        NavigationSplitView {
-            ShowListView(viewModel: viewModel)
-        } detail: {
-            if let show = viewModel.selectedShow {
-                if show.isLive {
-                    LiveDetailView(viewModel: viewModel, show: show)
+        ZStack {
+            NavigationSplitView {
+                ShowListView(viewModel: viewModel)
+            } detail: {
+                if let show = viewModel.selectedShow {
+                    if show.isLive {
+                        LiveDetailView(viewModel: viewModel, show: show)
+                    } else {
+                        EpisodeListView(viewModel: viewModel, show: show)
+                    }
                 } else {
-                    EpisodeListView(viewModel: viewModel, show: show)
+                    ContentUnavailableView(
+                        "Select a show",
+                        systemImage: "radio",
+                        description: Text("Live radio and on-demand episodes from Monocle 24")
+                    )
                 }
-            } else {
-                ContentUnavailableView(
-                    "Select a show",
-                    systemImage: "radio",
-                    description: Text("Live radio and on-demand episodes from Monocle 24")
-                )
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if viewModel.currentShow != nil {
-                MiniPlayerBar(viewModel: viewModel) { showNowPlaying = true }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if viewModel.currentShow != nil && !showNowPlaying {
+                    MiniPlayerBar(viewModel: viewModel, namespace: playerNamespace) {
+                        Haptics.tick()
+                        withAnimation(Self.expand) { showNowPlaying = true }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
-        }
-        .sheet(isPresented: $showNowPlaying) {
-            NowPlayingView(viewModel: viewModel)
+
+            if showNowPlaying {
+                NowPlayingView(viewModel: viewModel, namespace: playerNamespace) {
+                    withAnimation(Self.expand) { showNowPlaying = false }
+                }
+                .zIndex(1)
+                .transition(.move(edge: .bottom))
+            }
         }
         .onChange(of: viewModel.selectedShow) { _, show in
             // List selection drives navigation; route it through selectShow

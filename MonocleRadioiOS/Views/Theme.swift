@@ -85,20 +85,47 @@ struct CoverArt: View {
     }
 }
 
+// MARK: - Haptics
+
+/// One place for the app's touch vocabulary. Radio used to be physical;
+/// small, consistent ticks keep it that way.
+enum Haptics {
+    /// Play/pause — the main transport action
+    static func play() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
+    /// Skips, expanding/collapsing the player
+    static func tick() { UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7) }
+    /// Scrubber crossing a minute mark
+    static func detent() { UISelectionFeedbackGenerator().selectionChanged() }
+    /// Sleep timer armed
+    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
+}
+
 // MARK: - Live Badge
 
-/// Red dot + tracked "LIVE" caption.
+/// Red dot + tracked "LIVE" caption. The dot breathes slowly while on air —
+/// the app's one ambient motion (still under Reduce Motion).
 struct LiveBadge: View {
-    /// Dot pulses secondary when the stream is loaded but paused.
+    /// Dot falls back to secondary when the stream is loaded but paused.
     var active: Bool = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
 
     var body: some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(active ? Color.monocleRed : Color.secondary)
                 .frame(width: 8, height: 8)
+                .opacity(active && breathing ? 0.4 : 1)
+                .scaleEffect(active && breathing ? 0.8 : 1)
+                .animation(
+                    active && !reduceMotion
+                        ? .easeInOut(duration: 1.8).repeatForever(autoreverses: true)
+                        : .default,
+                    value: breathing
+                )
             Kicker(text: "Live", color: active ? .monocleRed : .secondary)
         }
+        .onAppear { if !reduceMotion { breathing = true } }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Live")
     }
