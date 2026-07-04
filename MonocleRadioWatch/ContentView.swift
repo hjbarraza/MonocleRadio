@@ -29,6 +29,24 @@ struct Kicker: View {
     }
 }
 
+/// 4:3 cover thumb, wrist-sized.
+struct WatchCoverArt: View {
+    let url: URL?
+    var width: CGFloat = 42
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if case .success(let image) = phase {
+                image.resizable().aspectRatio(contentMode: .fill)
+            } else {
+                Color.white.opacity(0.08)
+            }
+        }
+        .frame(width: width, height: width * 616 / 822)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+}
+
 // MARK: - Root
 
 struct ContentView: View {
@@ -131,8 +149,12 @@ private struct ShowsPage: View {
                 NavigationLink {
                     EpisodesPage(viewModel: viewModel, show: show)
                 } label: {
-                    Text(show.name)
-                        .font(.system(.footnote, design: .serif).weight(.semibold))
+                    HStack(spacing: 8) {
+                        WatchCoverArt(url: show.coverURL)
+                        Text(show.name)
+                            .font(.system(.footnote, design: .serif).weight(.semibold))
+                            .lineLimit(2)
+                    }
                 }
             }
             .navigationTitle("Shows")
@@ -158,20 +180,26 @@ private struct EpisodesPage: View {
                     Button {
                         viewModel.play(episode, from: show)
                     } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(episode.title)
-                                .font(.system(.footnote, design: .serif).weight(.semibold))
-                                .lineLimit(3)
-                            HStack(spacing: 5) {
-                                if viewModel.currentEpisode == episode && viewModel.isPlaying {
-                                    Image(systemName: "speaker.wave.2.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(Color.monocleGold)
-                                }
-                                if !episode.date.isEmpty {
-                                    Text(episode.displayDate)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
+                        HStack(alignment: .top, spacing: 8) {
+                            if let image = episode.imageURL {
+                                WatchCoverArt(url: image)
+                                    .padding(.top, 2)
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(episode.title)
+                                    .font(.system(.footnote, design: .serif).weight(.semibold))
+                                    .lineLimit(3)
+                                HStack(spacing: 5) {
+                                    if viewModel.currentEpisode == episode && viewModel.isPlaying {
+                                        Image(systemName: "speaker.wave.2.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(Color.monocleGold)
+                                    }
+                                    if !episode.date.isEmpty {
+                                        Text(episode.displayDate)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
