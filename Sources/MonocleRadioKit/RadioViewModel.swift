@@ -1,26 +1,28 @@
 // RadioViewModel.swift — @Observable view model orchestrating audio, UI state, media keys, now playing
-// Monocle Radio — macOS menu bar player for Monocle 24
+// MonocleRadioKit — shared core for the macOS and iOS Monocle Radio apps
 
 import SwiftUI
 import MediaPlayer
+#if os(macOS)
 import AppKit
+#endif
 
 /// Single source of truth for the entire app. Owns AudioEngine, episode cache,
 /// show/episode selection, media key handling, and Now Playing integration.
 @Observable
-class RadioViewModel {
-    let engine = AudioEngine()
-    let shows = Show.all()
+public class RadioViewModel {
+    public let engine = AudioEngine()
+    public let shows = Show.all()
 
-    var selectedShow: Show?
-    var episodes: [Episode] = []
-    var currentShow: Show?
-    var currentEpisode: Episode?
-    var isLoadingEpisodes = false
-    var episodeError: String?
+    public var selectedShow: Show?
+    public var episodes: [Episode] = []
+    public var currentShow: Show?
+    public var currentEpisode: Episode?
+    public var isLoadingEpisodes = false
+    public var episodeError: String?
 
     // Volume persisted via UserDefaults (can't use @AppStorage outside SwiftUI views)
-    var volume: Double {
+    public var volume: Double {
         didSet {
             engine.volume = Float(volume / 100)
             UserDefaults.standard.set(volume, forKey: "volume")
@@ -31,49 +33,52 @@ class RadioViewModel {
     private var episodeCache: [String: (episodes: [Episode], fetched: Date)] = [:]
     private let cacheTTL: TimeInterval = 30 * 60  // 30 minutes
 
-    init() {
+    public init() {
         let saved = UserDefaults.standard.double(forKey: "volume")
         self.volume = saved > 0 ? saved : 75
         engine.volume = Float(self.volume / 100)
         setupMediaKeys()
-        setupWakeObserver()
 
-        // Auto-play live stream on launch
+        #if os(macOS)
+        setupWakeObserver()
+        // Auto-play live stream on launch (macOS only — on iOS the app may
+        // launch into the background and users expect silence until they act)
         Task { @MainActor in playLive() }
+        #endif
     }
 
     // MARK: - Computed Properties
 
-    var isPlaying: Bool { engine.isPlaying }
-    var isLive: Bool { engine.isLive }
-    var streamTitle: String { engine.streamTitle }
-    var progress: Double { engine.duration > 0 ? engine.elapsed / engine.duration : 0 }
-    var currentCoverURL: URL? { currentShow?.coverURL }
+    public var isPlaying: Bool { engine.isPlaying }
+    public var isLive: Bool { engine.isLive }
+    public var streamTitle: String { engine.streamTitle }
+    public var progress: Double { engine.duration > 0 ? engine.elapsed / engine.duration : 0 }
+    public var currentCoverURL: URL? { currentShow?.coverURL }
 
-    var subtitle: String {
+    public var subtitle: String {
         if isLive && !streamTitle.isEmpty { return streamTitle }
         if let ep = currentEpisode { return ep.title }
         return currentShow?.description ?? ""
     }
 
-    var statusColor: Color {
+    public var statusColor: Color {
         guard isPlaying else { return .secondary }
         return isLive ? .red : .green
     }
 
-    var elapsedString: String { formatTime(engine.elapsed) }
-    var durationString: String { formatTime(engine.duration) }
+    public var elapsedString: String { formatTime(engine.elapsed) }
+    public var durationString: String { formatTime(engine.duration) }
 
     // MARK: - Playback
 
-    func playLive() {
+    public func playLive() {
         currentShow = shows.first
         currentEpisode = nil
         engine.play(url: Show.liveStreamURL, live: true)
         updateNowPlaying()
     }
 
-    func play(_ episode: Episode, from show: Show) {
+    public func play(_ episode: Episode, from show: Show) {
         guard let url = episode.audioURL else { return }
         currentShow = show
         currentEpisode = episode
@@ -81,14 +86,14 @@ class RadioViewModel {
         updateNowPlaying()
     }
 
-    func togglePlayPause() {
+    public func togglePlayPause() {
         engine.togglePlayPause()
         updateNowPlaying()
     }
 
     // MARK: - Show/Episode Selection
 
-    func selectShow(_ show: Show) {
+    public func selectShow(_ show: Show) {
         selectedShow = show
         if show.isLive {
             playLive()
@@ -106,7 +111,7 @@ class RadioViewModel {
         loadEpisodes(for: show)
     }
 
-    func retryEpisodes() {
+    public func retryEpisodes() {
         guard let show = selectedShow else { return }
         loadEpisodes(for: show)
     }
@@ -166,7 +171,7 @@ class RadioViewModel {
 
     // MARK: - Now Playing Info Center
 
-    private func updateNowPlaying() {
+    func updateNowPlaying() {
         let title: String
         if let ep = currentEpisode {
             title = ep.title
@@ -187,11 +192,15 @@ class RadioViewModel {
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        #if os(macOS)
+        // playbackState is macOS-only; iOS infers state from playbackRate
         MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
+        #endif
     }
 
-    // MARK: - Sleep/Wake
+    // MARK: - Sleep/Wake (macOS)
 
+    #if os(macOS)
     private func setupWakeObserver() {
         NotificationCenter.default.addObserver(
             forName: NSWorkspace.didWakeNotification,
@@ -201,6 +210,7 @@ class RadioViewModel {
             self.playLive()
         }
     }
+    #endif
 
     // MARK: - Helpers
 

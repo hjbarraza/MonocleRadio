@@ -1,5 +1,5 @@
 // AudioEngine.swift — AVPlayer wrapper for live streaming and on-demand playback
-// Monocle Radio — macOS menu bar player for Monocle 24
+// MonocleRadioKit — shared core for the macOS and iOS Monocle Radio apps
 
 import AVFoundation
 import Combine
@@ -7,7 +7,7 @@ import Combine
 /// Handles audio playback via AVPlayer with ICY metadata extraction,
 /// periodic time observation, and auto-reconnect for live streams.
 @Observable
-class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
+public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     private var player: AVPlayer?
     private var playerItem: AVPlayerItem?
     private var timeObserver: Any?
@@ -17,19 +17,23 @@ class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     private var lastPlayedURL: URL?
 
     // Published state
-    var isPlaying = false
-    var isLive = false
-    var streamTitle = ""
-    var elapsed: TimeInterval = 0
-    var duration: TimeInterval = 0
-    var volume: Float = 0.75 {
+    public var isPlaying = false
+    public var isLive = false
+    public var streamTitle = ""
+    public var elapsed: TimeInterval = 0
+    public var duration: TimeInterval = 0
+    public var volume: Float = 0.75 {
         didSet { player?.volume = volume }
     }
-    var error: String?
+    public var error: String?
+
+    public override init() {
+        super.init()
+    }
 
     // MARK: - Playback Controls
 
-    func play(url: URL, live: Bool = false) {
+    public func play(url: URL, live: Bool = false) {
         stop()
         isLive = live
         lastPlayedURL = url
@@ -54,21 +58,21 @@ class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
         isPlaying = true
     }
 
-    func pause() {
+    public func pause() {
         player?.pause()
         isPlaying = false
     }
 
-    func resume() {
+    public func resume() {
         player?.play()
         isPlaying = true
     }
 
-    func togglePlayPause() {
+    public func togglePlayPause() {
         if isPlaying { pause() } else { resume() }
     }
 
-    func stop() {
+    public func stop() {
         if let t = timeObserver {
             player?.removeTimeObserver(t)
             timeObserver = nil
@@ -87,7 +91,7 @@ class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
 
     // MARK: - ICY Metadata Delegate
 
-    func metadataOutput(
+    public func metadataOutput(
         _ output: AVPlayerItemMetadataOutput,
         didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
         from track: AVPlayerItemTrack?
