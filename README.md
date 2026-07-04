@@ -62,6 +62,23 @@ The app lives in your menu bar — no Dock icon. Click the Monocle monogram to o
 - **Launch at Login** — toggle in the footer
 - **Dark mode** — automatic
 
+## iOS & iPadOS
+
+The iOS app shares its playback core with the Mac app (see the
+[port plan](docs/IOS_IPADOS_PLAN.md)). It is for personal sideloading —
+there is no App Store release. The Xcode project is generated with
+[XcodeGen](https://github.com/yonaskolb/XcodeGen):
+
+```sh
+brew install xcodegen
+xcodegen                      # generates MonocleRadio.xcodeproj from project.yml
+open MonocleRadio.xcodeproj
+```
+
+In Xcode: pick the **MonocleRadioiOS** scheme, set your personal team under
+*Signing & Capabilities*, and Run on your device. With free provisioning the
+install expires after 7 days — re-run from Xcode to re-sign.
+
 ## Build from Source
 
 ```sh
