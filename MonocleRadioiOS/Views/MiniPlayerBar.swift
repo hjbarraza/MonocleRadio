@@ -22,7 +22,7 @@ struct MiniPlayerBar: View {
             }
 
             HStack(spacing: 12) {
-                CoverArt(url: viewModel.currentCoverURL, size: 40)
+                CoverArt(url: viewModel.currentCoverURL, width: 53)
 
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
@@ -44,10 +44,15 @@ struct MiniPlayerBar: View {
                 Spacer(minLength: 8)
 
                 Button { viewModel.togglePlayPause() } label: {
-                    Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 44, height: 44)
+                    if viewModel.isBuffering {
+                        ProgressView()
+                            .frame(width: 44, height: 44)
+                    } else {
+                        Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                            .contentTransition(.symbolEffect(.replace))
+                            .frame(width: 44, height: 44)
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")

@@ -6,6 +6,8 @@ import MonocleRadioKit
 
 struct RootView: View {
     @Bindable var viewModel: RadioViewModel
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var showNowPlaying = false
     @State private var audioSession: AudioSessionController?
 
@@ -37,12 +39,24 @@ struct RootView: View {
         }
         .onChange(of: viewModel.selectedShow) { _, show in
             // List selection drives navigation; route it through selectShow
-            // so episode loading/caching (and live auto-play) still happen
-            if let show { viewModel.selectShow(show) }
+            // for episode loading/caching. Never auto-play on navigation —
+            // audio starts only from explicit play controls.
+            if let show { viewModel.selectShow(show, autoplayLive: false) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Keep the resume position fresh when the app leaves the foreground
+            if phase == .background || phase == .inactive {
+                viewModel.saveResumeState()
+            }
         }
         .task {
             if audioSession == nil {
                 audioSession = AudioSessionController(viewModel: viewModel)
+            }
+            // iPad: never show an empty detail pane — land on the live
+            // destination (paused; play stays an explicit action)
+            if sizeClass == .regular, viewModel.selectedShow == nil {
+                viewModel.selectedShow = viewModel.shows.first(where: \.isLive)
             }
         }
     }

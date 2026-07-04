@@ -12,12 +12,14 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     private var playerItem: AVPlayerItem?
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
+    private var timeControlObservation: NSKeyValueObservation?
     private var reconnectAttempts = 0
     private let maxReconnects = 3
     private var lastPlayedURL: URL?
 
     // Published state
     public var isPlaying = false
+    public var isBuffering = false
     public var isLive = false
     public var streamTitle = ""
     public var elapsed: TimeInterval = 0
@@ -61,9 +63,19 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
 
         if !live { addTimeObserver() }
         observeStatus()
+        observeTimeControl()
 
         player?.play()
         isPlaying = true
+    }
+
+    /// Track stalls: .waitingToPlayAtSpecifiedRate means buffering.
+    private func observeTimeControl() {
+        timeControlObservation = player?.observe(\.timeControlStatus, options: [.new, .initial]) {
+            [weak self] player, _ in
+            let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+            Task { @MainActor in self?.isBuffering = waiting }
+        }
     }
 
     public func pause() {
@@ -101,10 +113,13 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
         }
         statusObservation?.invalidate()
         statusObservation = nil
+        timeControlObservation?.invalidate()
+        timeControlObservation = nil
         player?.pause()
         player = nil
         playerItem = nil
         isPlaying = false
+        isBuffering = false
         elapsed = 0
         duration = 0
         streamTitle = ""

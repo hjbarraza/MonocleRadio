@@ -45,6 +45,7 @@ public class RadioViewModel {
         self.volume = 100
         engine.volume = 1.0
         #endif
+        loadResumeState()
         setupMediaKeys()
 
         #if os(macOS)
@@ -59,6 +60,7 @@ public class RadioViewModel {
 
     public var isPlaying: Bool { engine.isPlaying }
     public var isLive: Bool { engine.isLive }
+    public var isBuffering: Bool { engine.isBuffering }
     public var streamTitle: String { engine.streamTitle }
     public var progress: Double { engine.duration > 0 ? engine.elapsed / engine.duration : 0 }
     public var currentCoverURL: URL? { currentShow?.coverURL }
@@ -128,10 +130,12 @@ public class RadioViewModel {
 
     // MARK: - Show/Episode Selection
 
-    public func selectShow(_ show: Show) {
+    /// `autoplayLive` keeps the macOS popover behavior (tap live row = listen);
+    /// iOS passes `false` so navigating never starts audio uninvited.
+    public func selectShow(_ show: Show, autoplayLive: Bool = true) {
         selectedShow = show
         if show.isLive {
-            playLive()
+            if autoplayLive { playLive() }
             return
         }
 
@@ -270,6 +274,98 @@ public class RadioViewModel {
         // playbackState is macOS-only; iOS infers state from playbackRate
         MPNowPlayingInfoCenter.default().playbackState = isPlaying ? .playing : .paused
         #endif
+
+        saveResumeState()
+    }
+
+    // MARK: - Resume (Continue Listening)
+
+    public struct ResumeState {
+        public let show: Show
+        public let episode: Episode
+        public let position: TimeInterval
+    }
+
+    /// Last on-demand listening position, restored across launches.
+    public private(set) var continueListening: ResumeState?
+
+    /// Persist the current on-demand position. Called from updateNowPlaying
+    /// (play/pause/seek/skip) and from the app on scene-phase changes.
+    public func saveResumeState() {
+        guard !isLive, let ep = currentEpisode, let show = currentShow,
+              let url = ep.audioURL, engine.elapsed > 30 else { return }
+        // Within the last minute — treat as finished, don't offer a resume
+        if engine.duration > 0, engine.elapsed > engine.duration - 60 {
+            clearResumeState()
+            return
+        }
+        let d = UserDefaults.standard
+        d.set(show.slug, forKey: "resume.showSlug")
+        d.set(url.absoluteString, forKey: "resume.audioURL")
+        d.set(ep.title, forKey: "resume.title")
+        d.set(ep.number, forKey: "resume.number")
+        d.set(ep.date, forKey: "resume.date")
+        d.set(ep.description, forKey: "resume.description")
+        d.set(ep.imageURL?.absoluteString, forKey: "resume.imageURL")
+        d.set(engine.elapsed, forKey: "resume.position")
+        continueListening = ResumeState(show: show, episode: ep, position: engine.elapsed)
+    }
+
+    public func resumeContinueListening() {
+        guard let state = continueListening else { return }
+        play(state.episode, from: state.show)
+        seek(to: state.position)
+    }
+
+    private func loadResumeState() {
+        let d = UserDefaults.standard
+        guard let slug = d.string(forKey: "resume.showSlug"),
+              let show = shows.first(where: { $0.slug == slug }),
+              let urlString = d.string(forKey: "resume.audioURL"),
+              let url = URL(string: urlString),
+              let title = d.string(forKey: "resume.title") else { return }
+        let episode = Episode(
+            title: title,
+            audioURL: url,
+            number: d.string(forKey: "resume.number") ?? "",
+            date: d.string(forKey: "resume.date") ?? "",
+            description: d.string(forKey: "resume.description") ?? "",
+            imageURL: d.string(forKey: "resume.imageURL").flatMap(URL.init(string:))
+        )
+        continueListening = ResumeState(show: show, episode: episode, position: d.double(forKey: "resume.position"))
+    }
+
+    private func clearResumeState() {
+        let d = UserDefaults.standard
+        for key in ["resume.showSlug", "resume.audioURL", "resume.title", "resume.number",
+                    "resume.date", "resume.description", "resume.imageURL", "resume.position"] {
+            d.removeObject(forKey: key)
+        }
+        continueListening = nil
+    }
+
+    // MARK: - Sleep Timer
+
+    /// When the current sleep timer fires, or nil if none is active.
+    public private(set) var sleepTimerEnd: Date?
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+
+    public func startSleepTimer(minutes: Int) {
+        sleepTask?.cancel()
+        sleepTimerEnd = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard !Task.isCancelled else { return }
+            engine.pause()
+            sleepTimerEnd = nil
+            updateNowPlaying()
+        }
+    }
+
+    public func cancelSleepTimer() {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepTimerEnd = nil
     }
 
     // MARK: - Lock Screen / Control Center Artwork
