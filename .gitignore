@@ -4,5 +4,8 @@ build/
 DerivedData/
 .swiftpm/
 .build/
-DerivedData/
-build/
+
+# XcodeGen output (regenerate with `xcodegen`)
+*.xcodeproj
+MonocleRadioiOS/Info.plist
+xcuserdata/

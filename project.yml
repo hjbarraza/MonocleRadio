@@ -1,0 +1,48 @@
+# project.yml — XcodeGen definition for the iOS app target
+# Generate the Xcode project with:  brew install xcodegen && xcodegen
+# The macOS menu bar app continues to build via `make app` (SwiftPM).
+name: MonocleRadio
+options:
+  bundleIdPrefix: com.monocle
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  MonocleRadioKit:
+    path: .
+targets:
+  MonocleRadioiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - MonocleRadioiOS
+    dependencies:
+      - package: MonocleRadioKit
+        product: MonocleRadioKit
+    info:
+      path: MonocleRadioiOS/Info.plist
+      properties:
+        CFBundleDisplayName: Monocle Radio
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes: [audio]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.monocle.radio.ios
+        PRODUCT_NAME: Monocle Radio
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_VERSION: "5.9"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
