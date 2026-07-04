@@ -27,6 +27,9 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     }
     public var error: String?
 
+    /// Whether a player item is currently loaded (playing or paused).
+    public var hasCurrentItem: Bool { playerItem != nil }
+
     public override init() {
         super.init()
     }
@@ -35,6 +38,11 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
 
     public func play(url: URL, live: Bool = false) {
         stop()
+
+        #if os(iOS)
+        // Activate lazily so launching the app doesn't interrupt other audio
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
         isLive = live
         lastPlayedURL = url
         reconnectAttempts = 0
@@ -70,6 +78,20 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
 
     public func togglePlayPause() {
         if isPlaying { pause() } else { resume() }
+    }
+
+    /// Seek to an absolute position (on-demand only; no-op for live streams).
+    public func seek(to seconds: TimeInterval) {
+        guard !isLive, let player else { return }
+        let clamped = max(0, duration > 0 ? min(seconds, duration) : seconds)
+        player.seek(to: CMTime(seconds: clamped, preferredTimescale: 600),
+                    toleranceBefore: .zero, toleranceAfter: .zero)
+        elapsed = clamped
+    }
+
+    /// Skip forward (positive) or backward (negative) relative to the current position.
+    public func skip(by seconds: TimeInterval) {
+        seek(to: elapsed + seconds)
     }
 
     public func stop() {
