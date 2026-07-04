@@ -15,7 +15,7 @@ struct MiniPlayerBar: View {
             if !viewModel.isLive, viewModel.progress > 0 {
                 GeometryReader { geo in
                     Rectangle()
-                        .fill(Color.monocleGold)
+                        .fill(ArtworkPalette.shared.accent(for: viewModel.currentCoverURL))
                         .frame(width: geo.size.width * min(viewModel.progress, 1))
                 }
                 .frame(height: 2)

@@ -92,6 +92,8 @@ private struct EpisodeRow: View {
     let isBuffering: Bool
     let onPlay: () -> Void
 
+    private var downloads: DownloadStore { .shared }
+
     private var playable: Bool { episode.audioURL != nil }
 
     var body: some View {
@@ -117,6 +119,9 @@ private struct EpisodeRow: View {
                     HStack(spacing: 8) {
                         if !episode.date.isEmpty { Text(episode.displayDate) }
                         if !episode.number.isEmpty { Text(episode.number) }
+                        if downloads.revision >= 0, downloads.isDownloaded(episode) {
+                            Kicker(text: "Downloaded", color: .monocleGold)
+                        }
                         if !playable {
                             Kicker(text: "Unavailable")
                         }
@@ -136,6 +141,9 @@ private struct EpisodeRow: View {
                         .padding(.top, 4)
                         .accessibilityHidden(true)
                 }
+                if playable {
+                    downloadControl
+                }
             }
             .padding(.vertical, 5)
         }
@@ -143,6 +151,41 @@ private struct EpisodeRow: View {
         .disabled(!playable)
         .opacity(playable ? 1 : 0.55)
         .accessibilityHint(playable ? "Plays this episode" : "Episode unavailable")
+    }
+
+    @ViewBuilder
+    private var downloadControl: some View {
+        if let key = episode.audioURL?.absoluteString, let fraction = downloads.progress[key] {
+            ProgressView(value: max(fraction, 0.02))
+                .progressViewStyle(.circular)
+                .controlSize(.small)
+                .tint(Color.monocleGold)
+                .padding(.top, 2)
+                .accessibilityLabel("Downloading")
+        } else if downloads.isDownloaded(episode) {
+            Button {
+                downloads.remove(episode)
+            } label: {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.body)
+                    .foregroundStyle(Color.monocleGold)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Remove download")
+        } else {
+            Button {
+                Haptics.tick()
+                downloads.download(episode)
+            } label: {
+                Image(systemName: "arrow.down.circle")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 32)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Download episode")
+        }
     }
 }
 
@@ -231,6 +274,13 @@ struct LiveDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 8)
                     .accessibilityLabel(isCurrentAndPlaying ? "Pause live radio" : "Play live radio")
+
+                    if let error = viewModel.engine.error {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(Color.monocleRed)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
                 .padding(24)
                 .frame(maxWidth: 560)

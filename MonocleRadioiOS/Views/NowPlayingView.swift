@@ -169,7 +169,7 @@ struct NowPlayingView: View {
                 }
                 isScrubbing = editing
             }
-            .tint(Color.monocleGold)
+            .tint(ArtworkPalette.shared.accent(for: viewModel.currentCoverURL))
             .accessibilityLabel("Playback position")
             .onChange(of: scrubProgress) { _, progress in
                 // Minute-mark detents while scrubbing — the dial clicks
