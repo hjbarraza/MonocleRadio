@@ -12,6 +12,13 @@ Monocle 24 stream, the 25-show catalog, on-demand episode playback — plus the
 behaviors iOS users expect: background audio, lock screen controls, proper
 interruption handling, and an adaptive layout for iPhone and iPad.
 
+**Distribution: personal use only.** The app is installed on the owner's own
+devices via Xcode — no App Store, TestFlight, or public release. This removes
+the content-IP concern and the review process entirely. With free
+provisioning the app must be re-installed from Xcode every 7 days; a paid
+developer account ($99/yr) extends signing to 1 year and is the only upgrade
+worth considering.
+
 **Non-goals for v1:** downloads/offline playback, CarPlay, widgets, sleep
 timer, playback history/resume. These are listed in §9 as follow-ups.
 
@@ -281,7 +288,8 @@ lock screen artwork, scrubbing, and ±15 s all functional.
 ### Phase 4 — Polish & release readiness
 1. VoiceOver pass, Dynamic Type audit (largest sizes), landscape iPhone
    decision, Stage Manager check.
-2. Launch screen, App Store metadata assets (if distributing).
+2. Launch screen; `make ios-install` target for one-command deploy to the
+   owner's devices (eases the 7-day free-provisioning re-sign cycle).
 3. Unit tests for the scraper against fixture HTML (benefits both platforms —
    the scraper is the most fragile component and currently untested).
 
@@ -292,13 +300,13 @@ lock screen artwork, scrubbing, and ±15 s all functional.
 | Risk | Impact | Mitigation |
 |---|---|---|
 | **Scraper fragility** — episodes come from parsing monocle.com HTML; a site redesign breaks both apps. | High | Fixture-based tests (Phase 4) to catch breakage early; graceful error UI already exists. Investigate whether Monocle publishes RSS feeds per show (Omny.fm-hosted shows usually have RSS) — would remove SwiftSoup entirely. **Worth checking before Phase 0.** |
-| **Distribution** — README notes there's no Apple Developer account. iOS has no Gatekeeper-style escape hatch: without the $99/yr account there is no TestFlight/App Store; free provisioning requires re-signing via Xcode every 7 days. | High (for reach) | Decide early: personal sideload (free) vs. paid account. Also note: an App Store submission streaming Monocle's content/branding without permission risks rejection (guideline 5.2 – intellectual property) or a takedown. Personal use / unlisted distribution avoids this. |
+| **7-day signing expiry** — with free provisioning (no paid developer account), the app stops launching 7 days after install and must be re-deployed from Xcode. | Low (annoyance) | Accepted for personal use. A `make ios-install` target (via `xcodebuild` + `ios-deploy` or Xcode) makes re-signing a one-command chore. Paid account ($99/yr) extends this to 1 year if it becomes tiresome. |
 | **Live stream URL stability** — hardcoded StreamTheWorld URL. | Medium | Same risk as today on Mac; keep the URL in one shared constant. |
 | **iCloud sync of state** (volume, last show) | None for v1 | Out of scope; `UserDefaults` per-device. |
 
 **Open questions for the product owner:**
-1. Distribution target: personal sideload, TestFlight, or App Store? (Drives
-   the developer-account and IP questions above.)
+1. ~~Distribution target~~ — **resolved: personal use only, sideloaded via
+   Xcode.** No App Store/TestFlight; IP concerns moot.
 2. Should iPhone support landscape in v1? (Recommend portrait-only.)
 3. Is auto-select-live-but-paused the right launch state, or should iOS
    remember and restore the last-played show/episode?
