@@ -41,10 +41,30 @@ public class AudioEngine: NSObject, AVPlayerItemMetadataOutputPushDelegate {
     public func play(url: URL, live: Bool = false) {
         stop()
 
+        #if os(watchOS)
+        // watchOS long-form audio: async activation, system routes to
+        // Bluetooth headphones (shows a route picker when none connected)
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .default, policy: .longFormAudio)
+        session.activate { [weak self] success, _ in
+            DispatchQueue.main.async {
+                guard success else {
+                    self?.error = "Connect Bluetooth headphones to listen."
+                    return
+                }
+                self?.beginPlayback(url: url, live: live)
+            }
+        }
+        #else
         #if os(iOS)
         // Activate lazily so launching the app doesn't interrupt other audio
         try? AVAudioSession.sharedInstance().setActive(true)
         #endif
+        beginPlayback(url: url, live: live)
+        #endif
+    }
+
+    private func beginPlayback(url: URL, live: Bool) {
         isLive = live
         lastPlayedURL = url
         reconnectAttempts = 0
