@@ -13,6 +13,7 @@ import MonocleRadioKit
 struct MonocleRadioWidgetsBundle: WidgetBundle {
     var body: some Widget {
         NowPlayingLiveActivity()
+        OnAirWidget()
     }
 }
 

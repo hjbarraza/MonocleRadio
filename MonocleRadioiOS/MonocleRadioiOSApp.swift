@@ -5,24 +5,28 @@ import SwiftUI
 import AVFAudio
 import MonocleRadioKit
 
+/// Process-wide model handle so App Intents (Siri/Shortcuts) reach the same
+/// player the UI drives.
+enum AppModel {
+    @MainActor static let viewModel: RadioViewModel = {
+        let vm = RadioViewModel()
+        // Launch with the live stream selected but paused — one tap to listen
+        vm.currentShow = vm.shows.first
+        return vm
+    }()
+}
+
 @main
 struct MonocleRadioiOSApp: App {
-    @State private var viewModel: RadioViewModel
-
     init() {
         // Category is set up front; the session is activated lazily on first
         // play (AudioEngine) so launching doesn't interrupt other audio.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-
-        let vm = RadioViewModel()
-        // Launch with the live stream selected but paused — one tap to listen
-        vm.currentShow = vm.shows.first
-        _viewModel = State(initialValue: vm)
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView(viewModel: viewModel)
+            RootView(viewModel: AppModel.viewModel)
         }
     }
 }

@@ -91,7 +91,9 @@ public class RadioViewModel {
     }
 
     public func play(_ episode: Episode, from show: Show) {
-        guard let url = episode.audioURL else { return }
+        guard let remote = episode.audioURL else { return }
+        // Prefer the offline copy when one exists
+        let url = DownloadStore.shared.localURL(for: episode) ?? remote
         currentShow = show
         currentEpisode = episode
         engine.play(url: url, live: false)

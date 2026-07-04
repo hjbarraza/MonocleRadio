@@ -217,7 +217,7 @@ private struct ShowRow: View {
             if isNowPlaying {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.caption)
-                    .foregroundStyle(Color.monocleGold)
+                    .foregroundStyle(ArtworkPalette.shared.accent(for: show.coverURL))
                     .accessibilityLabel("Now playing")
             }
         }
