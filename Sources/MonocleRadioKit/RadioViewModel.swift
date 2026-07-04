@@ -178,6 +178,35 @@ public class RadioViewModel {
         }
     }
 
+    // MARK: - Programme Schedule
+
+    public private(set) var schedule: [ScheduleEntry] = []
+    @ObservationIgnored private var scheduleFetched: Date?
+
+    /// Today's entry currently on air (nil until the schedule loads).
+    public var onAirNow: ScheduleEntry? {
+        schedule.last { $0.time <= Date() }
+    }
+
+    /// The next programme after now.
+    public var upNext: ScheduleEntry? {
+        schedule.first { $0.time > Date() }
+    }
+
+    /// Fetch today's programme, throttled to every 30 minutes.
+    public func loadSchedule() {
+        if let fetched = scheduleFetched, Date().timeIntervalSince(fetched) < 30 * 60 { return }
+        scheduleFetched = Date()
+        Task { @MainActor in
+            if let entries = try? await Schedule.fetchToday(), !entries.isEmpty {
+                schedule = entries
+            } else {
+                // Allow a retry sooner than the throttle on failure
+                scheduleFetched = nil
+            }
+        }
+    }
+
     // MARK: - Media Keys (MPRemoteCommandCenter)
 
     private func setupMediaKeys() {

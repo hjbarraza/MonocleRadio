@@ -10,6 +10,7 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var showNowPlaying = false
     @State private var audioSession: AudioSessionController?
+    @State private var liveActivity = LiveActivityController()
     @Namespace private var playerNamespace
 
     /// The player expansion spring — snappy up, settled landing.
@@ -64,6 +65,10 @@ struct RootView: View {
                 viewModel.saveResumeState()
             }
         }
+        // Mirror playback into the Dynamic Island / lock screen
+        .onChange(of: viewModel.isPlaying) { _, _ in liveActivity.sync(with: viewModel) }
+        .onChange(of: viewModel.subtitle) { _, _ in liveActivity.sync(with: viewModel) }
+        .onChange(of: viewModel.currentShow) { _, _ in liveActivity.sync(with: viewModel) }
         .task {
             if audioSession == nil {
                 audioSession = AudioSessionController(viewModel: viewModel)
