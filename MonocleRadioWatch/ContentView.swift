@@ -52,14 +52,20 @@ struct WatchCoverArt: View {
 struct ContentView: View {
     @Bindable var viewModel: RadioViewModel
 
+    @State private var selection = 0
+
     var body: some View {
-        TabView {
-            CoverPage(viewModel: viewModel)
-            LivePage(viewModel: viewModel)
-            ShowsPage(viewModel: viewModel)
-            NowPlayingView()   // system player: volume crown, route picker
+        TabView(selection: $selection) {
+            CoverPage(viewModel: viewModel).tag(0)
+            LivePage(viewModel: viewModel) { withAnimation { selection = 0 } }.tag(1)
+            ShowsPage(viewModel: viewModel).tag(2)
+            NowPlayingView().tag(3)   // system player: volume crown, route picker
         }
         .tabViewStyle(.verticalPage)
+        .onChange(of: viewModel.currentEpisode) { _, episode in
+            // Starting an episode lands you on the full-screen cover
+            if episode != nil { withAnimation { selection = 0 } }
+        }
     }
 }
 
@@ -140,6 +146,7 @@ private struct CoverPage: View {
 
 private struct LivePage: View {
     @Bindable var viewModel: RadioViewModel
+    var onPlay: () -> Void = {}
 
     private var live: Show? { viewModel.shows.first(where: \.isLive) }
     private var isLivePlaying: Bool {
@@ -179,6 +186,7 @@ private struct LivePage: View {
                 } else {
                     viewModel.playLive()
                 }
+                if viewModel.isPlaying { onPlay() }
             } label: {
                 ZStack {
                     Circle().fill(Color.paperWhite)
