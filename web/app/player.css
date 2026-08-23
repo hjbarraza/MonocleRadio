@@ -268,12 +268,13 @@
 
 .desk-label {
   padding: 22px 16px 8px;
-  /* Section headers as scannable anchors — big, bold, tracked caps */
+  /* Section headers as scannable anchors — big, bold, tracked caps.
+     Uses the scheme-aware text token (dark mode flips it to warm white). */
   font-size: 28px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgb(var(--ink-rgb) / 0.85);
+  color: var(--text-secondary);
 }
 
 .show-grid {
