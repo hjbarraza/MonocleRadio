@@ -127,6 +127,18 @@ export default function Page() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
+  // Manifest-shortcut deep links: /?view=live|schedule land on the live pane.
+  // On wide screens that's the auto-opened drawer; "schedule" then collapses it
+  // so the rail's programme is in view. On mobile (<600px) the rail already IS
+  // the live destination, so we don't swap panes at all.
+  useEffect(() => {
+    const view = new URLSearchParams(window.location.search).get("view");
+    if ((view === "live" || view === "schedule") && window.matchMedia("(min-width: 600px)").matches) {
+      setSelected(liveShow);
+      if (view === "schedule") scheduleFirstRef.current = true;
+    }
+  }, []);
+
   // Restore continue-listening + fetch today's schedule + SW registration
   useEffect(() => {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
@@ -324,6 +336,16 @@ export default function Page() {
   useEffect(() => {
     isWideRef.current = isWide;
   }, [isWide]);
+  // When set, the next wide-layout render skips the auto-opened drawer so a
+  // ?view=schedule deep link shows the rail's programme first.
+  const scheduleFirstRef = useRef(false);
+  useEffect(() => {
+    if (scheduleFirstRef.current && isWide && selected?.isLive) {
+      scheduleFirstRef.current = false;
+      const t = setTimeout(() => setSelected(null), 350);
+      return () => clearTimeout(t);
+    }
+  }, [isWide, selected]);
   // Commit a scrub drag; also called by arrow keys so a pending drag never
   // desyncs from a keyboard seek
   const commitScrubRef = useRef<() => void>(() => {});
