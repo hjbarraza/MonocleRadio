@@ -9,3 +9,10 @@ DerivedData/
 *.xcodeproj
 MonocleRadioiOS/Info.plist
 xcuserdata/
+
+# Web (Next.js PWA)
+web/node_modules/
+web/.next/
+web/next-env.d.ts
+web/*.tsbuildinfo
+.vercel/

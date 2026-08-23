@@ -91,6 +91,12 @@ make run    # debug build and run
 
 Requires Xcode command line tools (`xcode-select --install`).
 
+## Web App (PWA)
+
+`web/` contains a Next.js port of the iOS app, deployable on Vercel and
+installable on iPhone/iPad via Safari → Share → **Add to Home Screen**.
+See [web/README.md](web/README.md).
+
 ## Architecture
 
 5 Swift files, 1 external dependency ([SwiftSoup](https://github.com/scinfu/SwiftSoup) for HTML scraping).
