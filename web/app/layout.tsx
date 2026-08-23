@@ -33,6 +33,29 @@ export const metadata: Metadata = {
     apple: "/icons/icon-180.png",
     icon: "/icons/icon-192.png",
   },
+  openGraph: {
+    title: "Monocle Radio",
+    description: "Live stream and on-demand episodes from Monocle 24.",
+    url: "https://monocle.yuno.to",
+    siteName: "Monocle Radio",
+    images: [
+      {
+        url: "https://monocle.com/wp-content/uploads/2025/01/monocle_logo_radio_large_final-6426fda5b7c82.jpg",
+        width: 822,
+        height: 616,
+        alt: "Monocle Radio",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Monocle Radio",
+    description: "Live stream and on-demand episodes from Monocle 24.",
+    images: [
+      "https://monocle.com/wp-content/uploads/2025/01/monocle_logo_radio_large_final-6426fda5b7c82.jpg",
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

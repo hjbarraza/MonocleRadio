@@ -12,5 +12,19 @@
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Live Radio",
+      "short_name": "Live",
+      "description": "Open the Monocle 24 live stream",
+      "url": "/?view=live"
+    },
+    {
+      "name": "Today's Programme",
+      "short_name": "Schedule",
+      "description": "See today's broadcast schedule",
+      "url": "/?view=schedule"
+    }
   ]
 }
