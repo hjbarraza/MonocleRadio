@@ -6,6 +6,7 @@
 // schedule. Design tokens per DESIGN.md.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import "./player.css";
 import {
   allShows,
@@ -36,6 +37,11 @@ interface ResumeEntry {
 interface ScheduleRow {
   time: string;
   title: string;
+}
+
+interface LatestUpdate {
+  show: Show;
+  episode: Episode;
 }
 
 const EPISODE_TTL = 30 * 60 * 1000;
@@ -86,11 +92,15 @@ export default function Page() {
   // Navigation
   const [selected, setSelected] = useState<Show | null>(null);
   const [isWide, setIsWide] = useState(false);
+  const [homeView, setHomeView] = useState<"latest" | "shows">("latest");
 
   // Episodes
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [epLoading, setEpLoading] = useState(false);
   const [epError, setEpError] = useState(false);
+  const [latest, setLatest] = useState<LatestUpdate[]>([]);
+  const [latestLoading, setLatestLoading] = useState(true);
+  const [latestError, setLatestError] = useState(false);
   const cacheRef = useRef(new Map<string, { eps: Episode[]; at: number }>());
   const selectedSlugRef = useRef<string | null>(null);
 
@@ -114,23 +124,39 @@ export default function Page() {
 
   const isLive = current?.show.isLive ?? false;
 
-  // Wide-pane detection from 600px up (iPad mini portrait included);
-  // iPad lands on the live destination like RootView
+  // Wide-pane detection from 600px up (iPad mini portrait included).
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 600px)");
     const sync = () => {
       setIsWide(mq.matches);
-      if (mq.matches) setSelected((s) => s ?? liveShow);
     };
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
 
+  const loadLatest = useCallback(async () => {
+    setLatestLoading(true);
+    setLatestError(false);
+    try {
+      const res = await fetch("/api/latest");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setLatest(Array.isArray(data.updates) ? data.updates : []);
+    } catch {
+      setLatestError(true);
+    } finally {
+      setLatestLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLatest();
+  }, [loadLatest]);
+
   // Manifest-shortcut deep links: /?view=live|schedule land on the live pane.
-  // On wide screens that's the auto-opened drawer; "schedule" then collapses it
-  // so the rail's programme is in view. On mobile (<600px) the rail already IS
-  // the live destination, so we don't swap panes at all.
+  // "schedule" then collapses the wide-screen drawer so the rail's programme
+  // is in view. On mobile (<600px) the rail already is the live destination.
   useEffect(() => {
     const view = new URLSearchParams(window.location.search).get("view");
     if ((view === "live" || view === "schedule") && window.matchMedia("(min-width: 600px)").matches) {
@@ -594,33 +620,127 @@ export default function Page() {
             </div>
           )}
 
-          {/* Catalog grouped by desk — cover grid at every width:
-              3-up on phones, 2-up in the tablet/desktop sidebar */}
-          {desks.map((desk) => {
-            const deskShows = shows.filter((s) => s.desk === desk);
-            return (
-              <section key={desk}>
-                <div className="kicker desk-label">{desk}</div>
-                <div className="show-grid">
-                  {deskShows.map((s) => (
-                    <button
-                      key={s.slug}
-                      className={`tile${selected?.slug === s.slug ? " sel" : ""}`}
-                      onClick={() => selectShow(s)}
-                    >
-                      <span className="tile-art">
-                        <img src={s.coverURL} alt="" loading="lazy" />
-                        {current?.show.slug === s.slug && isPlaying && (
-                          <span className="tile-dot" />
-                        )}
-                      </span>
-                      <span className="tile-name">{s.name}</span>
-                    </button>
-                  ))}
+          <header className="home-nav">
+            <div>
+              <div className="kicker">
+                {homeView === "latest" ? "Recently updated" : "The programme"}
+              </div>
+              <h1 className="home-heading">
+                {homeView === "latest" ? "Latest episodes" : "All shows"}
+              </h1>
+            </div>
+            <div className="home-tabs" role="tablist" aria-label="Browse Monocle Radio">
+              <button
+                role="tab"
+                aria-selected={homeView === "latest"}
+                className={homeView === "latest" ? "active" : ""}
+                onClick={() => setHomeView("latest")}
+              >
+                Latest
+              </button>
+              <button
+                role="tab"
+                aria-selected={homeView === "shows"}
+                className={homeView === "shows" ? "active" : ""}
+                onClick={() => setHomeView("shows")}
+              >
+                Shows
+              </button>
+            </div>
+          </header>
+
+          {homeView === "latest" ? (
+            <section className="latest-feed" aria-busy={latestLoading}>
+              {latestLoading ? (
+                <div className="latest-state">
+                  <span className="spinner" />
+                  <span>Gathering the latest programmes…</span>
                 </div>
-              </section>
-            );
-          })}
+              ) : latestError ? (
+                <div className="latest-state">
+                  <span>Could not load the latest episodes.</span>
+                  <button className="retry-btn" onClick={loadLatest}>Retry</button>
+                </div>
+              ) : latest.length === 0 ? (
+                <div className="latest-state">No recent episodes found.</div>
+              ) : (
+                latest.map(({ show, episode }) => {
+                  const now =
+                    current?.episode != null &&
+                    episodeId(current.episode) === episodeId(episode) &&
+                    current.show.slug === show.slug;
+                  return (
+                    <article className={`latest-row${now ? " now" : ""}`} key={show.slug}>
+                      <button className="latest-copy" onClick={() => selectShow(show)}>
+                        <span className="latest-meta">
+                          <span className="latest-show">{show.name}</span>
+                          {episode.date && <span>{displayDate(episode.date)}</span>}
+                        </span>
+                        <span className="latest-title">{episode.title}</span>
+                        {episode.description && (
+                          <span className="latest-desc">{episode.description}</span>
+                        )}
+                      </button>
+                      <button
+                        className="latest-cover"
+                        onClick={() => playEpisode(episode, show)}
+                        disabled={!episode.audioURL}
+                        aria-label={now && isPlaying ? `Pause ${episode.title}` : `Play ${episode.title}`}
+                      >
+                        <Image
+                          src={show.coverURL}
+                          alt={`${show.name} cover`}
+                          width={164}
+                          height={123}
+                          sizes="(max-width: 599px) 104px, 124px"
+                        />
+                        <span className="latest-cover-control" aria-hidden="true">
+                          {now && isPlaying ? <IconPause /> : <IconPlay />}
+                        </span>
+                      </button>
+                    </article>
+                  );
+                })
+              )}
+              {!latestLoading && !latestError && latest.length > 0 && (
+                <button className="browse-shows" onClick={() => setHomeView("shows")}>
+                  <span>
+                    <span className="kicker">The full collection</span>
+                    <span className="browse-title">Browse every show</span>
+                  </span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              )}
+            </section>
+          ) : (
+            <div className="show-library">
+              {desks.map((desk) => {
+                const deskShows = shows.filter((s) => s.desk === desk);
+                return (
+                  <section key={desk}>
+                    <div className="kicker desk-label">{desk}</div>
+                    <div className="show-grid">
+                      {deskShows.map((s) => (
+                        <button
+                          key={s.slug}
+                          className={`tile${selected?.slug === s.slug ? " sel" : ""}`}
+                          onClick={() => selectShow(s)}
+                        >
+                          <span className="tile-art">
+                            <img src={s.coverURL} alt="" loading="lazy" />
+                            {current?.show.slug === s.slug && isPlaying && (
+                              <span className="tile-dot" />
+                            )}
+                          </span>
+                          <span className="tile-name">{s.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          )}
           <div style={{ height: 96 }} />
         </aside>
 
