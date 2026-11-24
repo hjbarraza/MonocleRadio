@@ -55,15 +55,15 @@ const IconPause = () => (
   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zm6 0h4v14h-4z" /></svg>
 );
 const IconBack15 = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="11 19 2 12 11 5" /><polyline points="22 19 13 12 22 5" />
-    <text x="12" y="10" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="600">15</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4.5V1.5L8 5l4 3.5v-3a7 7 0 1 1-7 7" />
+    <text x="12" y="16" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="700">15</text>
   </svg>
 );
 const IconFwd15 = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="13 19 22 12 13 5" /><polyline points="2 19 11 12 2 5" />
-    <text x="12" y="10" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="600">15</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4.5V1.5L16 5l-4 3.5v-3a7 7 0 1 0 7 7" />
+    <text x="12" y="16" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="700">15</text>
   </svg>
 );
 const IconChevronDown = () => (
@@ -121,6 +121,7 @@ export default function Page() {
   const [npOpen, setNpOpen] = useState(false);
   const [resume, setResume] = useState<ResumeEntry | null>(null);
   const lastResumeSave = useRef(0);
+  const savedPosRef = useRef(0);
 
   const isLive = current?.show.isLive ?? false;
 
@@ -194,26 +195,92 @@ export default function Page() {
 
   // ---------- Playback ----------
 
+  // Every load gets a token so a slow metadata/seek/play from an earlier
+  // episode can never act on the one that replaced it.
+  const loadToken = useRef(0);
+  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearStall = () => {
+    if (stallTimer.current) { clearTimeout(stallTimer.current); stallTimer.current = null; }
+  };
+
+  // Seek once metadata is ready (clamped), only if this load is still current.
+  const seekWhenReady = (audio: HTMLAudioElement, seekTo: number, token: number) => {
+    const apply = () => {
+      if (token !== loadToken.current) return;
+      const max = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration - 1 : seekTo;
+      try { audio.currentTime = Math.max(0, Math.min(seekTo, max)); } catch {}
+    };
+    if (audio.readyState >= 1) apply();
+    else audio.addEventListener("loadedmetadata", apply, { once: true });
+  };
+
+  const startPlay = (audio: HTMLAudioElement, token: number) => {
+    audio.play().catch((err: unknown) => {
+      if (token !== loadToken.current) return; // superseded by a newer load
+      const name = (err as { name?: string })?.name;
+      if (name === "AbortError") return; // interrupted by a newer load()/pause()
+      setConnecting(false);
+      // NotAllowedError = needs a user tap, not a broken stream
+      if (name !== "NotAllowedError") setPlayError(true);
+    });
+  };
+
   const playURL = useCallback((url: string, seekTo?: number) => {
     const audio = audioRef.current;
     if (!audio) return;
+    clearStall();
+    const token = ++loadToken.current;
     audio.src = url;
-    setElapsed(0);
+    savedPosRef.current = seekTo && seekTo > 0 ? seekTo : 0;
+    setElapsed(seekTo && seekTo > 0 ? seekTo : 0);
     setDuration(0);
     setConnecting(true);
     setPlayError(false);
-    if (seekTo && seekTo > 0) {
-      const onMeta = () => {
-        audio.currentTime = seekTo;
-        audio.removeEventListener("loadedmetadata", onMeta);
-      };
-      audio.addEventListener("loadedmetadata", onMeta);
-    }
-    // Surface failures instead of dying silently
-    audio.play().catch(() => {
-      setConnecting(false);
-      setPlayError(true);
+    if (seekTo && seekTo > 0) seekWhenReady(audio, seekTo, token);
+    startPlay(audio, token);
+  }, []);
+
+  // Resume after a pause. iOS drops the network connection / suspends the
+  // media element while paused (esp. locked screen), so a bare play() can
+  // reject or hang. Try play(); if it fails or the element is dead, reload
+  // the same source once, restore the position and play again.
+  const resumeAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const src = audio.currentSrc || audio.src;
+    if (!src) return;
+    const live = currentRef.current?.show.isLive ?? false;
+    clearStall();
+    const token = loadToken.current;
+    let reloaded = false;
+    const reload = () => {
+      if (reloaded || token !== loadToken.current) return;
+      reloaded = true;
+      clearStall();
+      const pos = live ? 0 : (audio.currentTime > 1 ? audio.currentTime : savedPosRef.current);
+      const base = src.replace(/([?&])_r=\d+&?/, "$1").replace(/[?&]$/, "");
+      const url = live ? `${base}${base.includes("?") ? "&" : "?"}_r=${Date.now()}` : base;
+      const t = ++loadToken.current;
+      setConnecting(true);
+      setPlayError(false);
+      audio.src = url;
+      audio.load();
+      if (pos > 0) seekWhenReady(audio, pos, t);
+      startPlay(audio, t);
+    };
+    const dead = !!audio.error || audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE || (!live && audio.readyState === 0);
+    if (dead) { reload(); return; }
+    audio.play().catch((err: unknown) => {
+      const name = (err as { name?: string })?.name;
+      if (name === "AbortError" || token !== loadToken.current) return;
+      if (name === "NotAllowedError") return;
+      reload();
     });
+    // play() that resolves/hangs without starting is the iOS stall case
+    stallTimer.current = setTimeout(() => {
+      stallTimer.current = null;
+      if (token === loadToken.current && audio.paused && !audio.ended) reload();
+    }, 4000);
   }, []);
 
   const playLive = useCallback(() => {
@@ -239,7 +306,7 @@ export default function Page() {
       else playLive();
       return;
     }
-    if (audio.paused) audio.play().catch(() => {});
+    if (audio.paused) resumeAudio();
     else audio.pause();
   }
 
@@ -257,11 +324,20 @@ export default function Page() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onPlay = () => { setIsPlaying(true); setIsBuffering(false); setConnecting(false); };
-    const onPause = () => setIsPlaying(false);
+    const onPlay = () => { clearStall(); setIsPlaying(true); setIsBuffering(false); setConnecting(false); };
+    const onPause = () => {
+      if (audio.currentTime > 0) savedPosRef.current = audio.currentTime;
+      const cur = currentRef.current;
+      if (cur?.episode && audio.currentTime > 30 && (!audio.duration || audio.currentTime < audio.duration - 60)) {
+        saveResume(cur, audio.currentTime);
+      }
+      setIsPlaying(false);
+    };
+    const onSync = () => { setIsPlaying(!audio.paused && !audio.ended); };
     const onWaiting = () => setIsBuffering(true);
     const onTime = () => {
       setElapsed(audio.currentTime);
+      if (audio.currentTime > 0) savedPosRef.current = audio.currentTime;
       // Save resume position ~every 5s (>30s in, >60s left — kit semantics)
       const cur = currentRef.current;
       if (
@@ -297,7 +373,13 @@ export default function Page() {
     audio.addEventListener("loadedmetadata", onDur);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
+    audio.addEventListener("canplay", () => setIsBuffering(false));
+    // iOS can change playback state while the page is hidden/locked
+    document.addEventListener("visibilitychange", onSync);
+    window.addEventListener("pageshow", onSync);
     return () => {
+      document.removeEventListener("visibilitychange", onSync);
+      window.removeEventListener("pageshow", onSync);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("waiting", onWaiting);
@@ -408,9 +490,11 @@ export default function Page() {
   }
 
   function clearResume() {
-    ["showSlug", "audioURL", "title", "number", "date", "position"].forEach((k) =>
-      localStorage.removeItem(`resume.${k}`)
-    );
+    try {
+      ["showSlug", "audioURL", "title", "number", "date", "position"].forEach((k) =>
+        localStorage.removeItem(`resume.${k}`)
+      );
+    } catch {}
     setResume(null);
   }
 
@@ -438,7 +522,7 @@ export default function Page() {
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => audioRef.current?.play().catch(() => {}));
+    ms.setActionHandler("play", () => resumeAudio());
     ms.setActionHandler("pause", () => audioRef.current?.pause());
     ms.setActionHandler("seekbackward", () => !isLive && skip(-15));
     ms.setActionHandler("seekforward", () => !isLive && skip(15));
