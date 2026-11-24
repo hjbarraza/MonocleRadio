@@ -1017,6 +1017,7 @@
   inset: 0;
   z-index: 50;
   overflow: hidden;
+  background: #141210; /* opaque base so the page never ghosts through the sheet */
   color: rgb(var(--paper-rgb));
   animation: np-in 0.35s ease-out;
 }
@@ -1207,8 +1208,8 @@
   place-items: center;
 }
 .np-skip svg {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
 }
 .np-playpause {
   width: 64px;
