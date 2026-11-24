@@ -19,6 +19,7 @@ import {
   type Episode,
   type Show,
 } from "@/lib/catalog";
+import { PlaybackGuard } from "@/lib/playback";
 
 interface Current {
   show: Show;
@@ -195,92 +196,33 @@ export default function Page() {
 
   // ---------- Playback ----------
 
-  // Every load gets a token so a slow metadata/seek/play from an earlier
-  // episode can never act on the one that replaced it.
-  const loadToken = useRef(0);
-  const stallTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearStall = () => {
-    if (stallTimer.current) { clearTimeout(stallTimer.current); stallTimer.current = null; }
+  // Recovery-aware playback (token-guarded loads, stall reload) lives in
+  // lib/playback.ts so it can be unit tested.
+  const guardRef = useRef<PlaybackGuard | null>(null);
+  const getGuard = () => {
+    if (!guardRef.current && audioRef.current) {
+      guardRef.current = new PlaybackGuard(audioRef.current, {
+        onConnecting: () => { setConnecting(true); setPlayError(false); },
+        onFailed: () => { setConnecting(false); setPlayError(true); },
+        onNeedsTap: () => setConnecting(false),
+      });
+    }
+    return guardRef.current;
   };
-
-  // Seek once metadata is ready (clamped), only if this load is still current.
-  const seekWhenReady = (audio: HTMLAudioElement, seekTo: number, token: number) => {
-    const apply = () => {
-      if (token !== loadToken.current) return;
-      const max = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration - 1 : seekTo;
-      try { audio.currentTime = Math.max(0, Math.min(seekTo, max)); } catch {}
-    };
-    if (audio.readyState >= 1) apply();
-    else audio.addEventListener("loadedmetadata", apply, { once: true });
-  };
-
-  const startPlay = (audio: HTMLAudioElement, token: number) => {
-    audio.play().catch((err: unknown) => {
-      if (token !== loadToken.current) return; // superseded by a newer load
-      const name = (err as { name?: string })?.name;
-      if (name === "AbortError") return; // interrupted by a newer load()/pause()
-      setConnecting(false);
-      // NotAllowedError = needs a user tap, not a broken stream
-      if (name !== "NotAllowedError") setPlayError(true);
-    });
-  };
+  const clearStall = () => guardRef.current?.clearStall();
 
   const playURL = useCallback((url: string, seekTo?: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    clearStall();
-    const token = ++loadToken.current;
-    audio.src = url;
+    const guard = getGuard();
+    if (!guard) return;
     savedPosRef.current = seekTo && seekTo > 0 ? seekTo : 0;
     setElapsed(seekTo && seekTo > 0 ? seekTo : 0);
     setDuration(0);
-    setConnecting(true);
-    setPlayError(false);
-    if (seekTo && seekTo > 0) seekWhenReady(audio, seekTo, token);
-    startPlay(audio, token);
+    guard.load(url, seekTo ?? 0);
   }, []);
 
-  // Resume after a pause. iOS drops the network connection / suspends the
-  // media element while paused (esp. locked screen), so a bare play() can
-  // reject or hang. Try play(); if it fails or the element is dead, reload
-  // the same source once, restore the position and play again.
   const resumeAudio = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const src = audio.currentSrc || audio.src;
-    if (!src) return;
     const live = currentRef.current?.show.isLive ?? false;
-    clearStall();
-    const token = loadToken.current;
-    let reloaded = false;
-    const reload = () => {
-      if (reloaded || token !== loadToken.current) return;
-      reloaded = true;
-      clearStall();
-      const pos = live ? 0 : (audio.currentTime > 1 ? audio.currentTime : savedPosRef.current);
-      const base = src.replace(/([?&])_r=\d+&?/, "$1").replace(/[?&]$/, "");
-      const url = live ? `${base}${base.includes("?") ? "&" : "?"}_r=${Date.now()}` : base;
-      const t = ++loadToken.current;
-      setConnecting(true);
-      setPlayError(false);
-      audio.src = url;
-      audio.load();
-      if (pos > 0) seekWhenReady(audio, pos, t);
-      startPlay(audio, t);
-    };
-    const dead = !!audio.error || audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE || (!live && audio.readyState === 0);
-    if (dead) { reload(); return; }
-    audio.play().catch((err: unknown) => {
-      const name = (err as { name?: string })?.name;
-      if (name === "AbortError" || token !== loadToken.current) return;
-      if (name === "NotAllowedError") return;
-      reload();
-    });
-    // play() that resolves/hangs without starting is the iOS stall case
-    stallTimer.current = setTimeout(() => {
-      stallTimer.current = null;
-      if (token === loadToken.current && audio.paused && !audio.ended) reload();
-    }, 4000);
+    getGuard()?.resume(live, savedPosRef.current);
   }, []);
 
   const playLive = useCallback(() => {
@@ -628,11 +570,12 @@ export default function Page() {
         {/* Sidebar / mobile root */}
         <aside className={`side${!isWide && selected ? " off" : ""}`}>
           {/* Masthead hero */}
-          <button
-            className="hero"
-            onClick={() => selectShow(liveShow)}
-            aria-label="Monocle 24 live"
-          >
+          <div className="hero">
+            <button
+              className="hero-open"
+              onClick={() => selectShow(liveShow)}
+              aria-label="Monocle 24 live"
+            />
             <span className="hero-art">
               <img src={liveShow.coverURL} alt="" />
               <span className={`hero-live${isLive && isPlaying ? " on" : ""}`}>
@@ -647,23 +590,13 @@ export default function Page() {
                   {onAirIdx >= 0 ? schedule[onAirIdx].title : liveShow.description}
                 </span>
               </span>
-              <span
+              <button
+                type="button"
                 className="play-btn"
-                role="button"
-                tabIndex={0}
                 aria-label={isLive && isPlaying ? "Pause live stream" : "Play live stream"}
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   if (isLive) togglePlayPause();
                   else playLive();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isLive) togglePlayPause();
-                    else playLive();
-                  }
                 }}
               >
                 {connecting && isLive ? (
@@ -673,9 +606,9 @@ export default function Page() {
                 ) : (
                   <IconPlay />
                 )}
-              </span>
+              </button>
             </span>
-          </button>
+          </div>
 
           {/* Continue listening */}
           {resume && (
