@@ -89,8 +89,7 @@ test("NotAllowedError asks for a tap and does not reload or error", async () => 
   a.src = a.currentSrc = "https://x/ep.mp3"; a.currentTime = 10;
   a.playImpl = rejectWith("NotAllowedError");
   g.resume(false, 10);
-  await tick(5);
-  g.clearStall();
+  await tick(40);
   assert.equal(ev.tap, 1);
   assert.equal(ev.failed, 0);
   assert.equal(a.loads, 0);
