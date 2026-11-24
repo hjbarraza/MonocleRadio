@@ -7,6 +7,8 @@
 
   --paper: #faf7f1;
   --paper-rgb: 250 247 241;
+  /* Fixed warm white for text on ink surfaces; does not flip in dark mode */
+  --on-ink-rgb: 250 247 241;
   --ink: #171512;
   --ink-rgb: 23 21 18;
   --gold: #c8a55a;

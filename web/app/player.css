@@ -116,17 +116,31 @@
 /* ---------- Masthead hero (the front page's cover) ---------- */
 
 .hero {
+  position: relative;
   margin: 14px;
   margin-bottom: 6px;
   border-radius: 12px;
   overflow: hidden;
   background: var(--ink);
-  color: rgb(var(--paper-rgb));
+  color: rgb(var(--on-ink-rgb));
   text-align: left;
   width: calc(100% - 28px);
   display: block;
   transition: transform 0.25s ease-out;
 }
+/* Stretched button: whole hero opens the live pane; the play button sits above it */
+.hero-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  border-radius: inherit;
+}
+.hero .play-btn {
+  position: relative;
+  z-index: 2;
+}
+
 .hero:active {
   transform: scale(0.985);
 }
@@ -180,7 +194,7 @@
   animation: none;
 }
 .hero-live .kicker {
-  color: rgb(var(--paper-rgb) / 0.92);
+  color: rgb(var(--on-ink-rgb) / 0.92);
 }
 .hero-live.on .kicker {
   color: var(--live);
@@ -265,7 +279,7 @@
 
 .hero-sub {
   font-size: 13px;
-  color: rgb(var(--paper-rgb) / 0.6);
+  color: rgb(var(--on-ink-rgb) / 0.6);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -339,7 +353,7 @@
 
 .home-tabs button.active {
   background: var(--ink);
-  color: rgb(var(--paper-rgb));
+  color: rgb(var(--on-ink-rgb));
 }
 
 .latest-feed {
@@ -439,8 +453,8 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(var(--paper-rgb) / 0.92);
-  color: var(--ink);
+  background: rgba(var(--on-ink-rgb) / 0.92);
+  color: rgb(var(--ink-rgb));
   box-shadow: 0 2px 9px rgba(0, 0, 0, 0.22);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
@@ -497,7 +511,7 @@
   justify-content: space-between;
   border-radius: 10px;
   background: var(--ink);
-  color: rgb(var(--paper-rgb));
+  color: rgb(var(--on-ink-rgb));
   text-align: left;
 }
 
@@ -508,7 +522,7 @@
 }
 
 .browse-shows .kicker {
-  color: rgb(var(--paper-rgb) / 0.56);
+  color: rgb(var(--on-ink-rgb) / 0.56);
 }
 
 .browse-title {
@@ -1017,7 +1031,8 @@
   inset: 0;
   z-index: 50;
   overflow: hidden;
-  color: rgb(var(--paper-rgb));
+  background: #141210; /* opaque base so the page never ghosts through the sheet */
+  color: rgb(var(--on-ink-rgb));
   animation: np-in 0.35s ease-out;
 }
 @keyframes np-in {
@@ -1071,7 +1086,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  color: rgb(var(--paper-rgb) / 0.75);
+  color: rgb(var(--on-ink-rgb) / 0.75);
 }
 .np-close svg {
   width: 20px;
@@ -1099,7 +1114,7 @@
   min-height: 74px;
 }
 .np-kicker {
-  color: rgb(var(--paper-rgb) / 0.6);
+  color: rgb(var(--on-ink-rgb) / 0.6);
   margin-bottom: 4px;
 }
 .np-title {
@@ -1140,13 +1155,13 @@
   background: linear-gradient(
     to right,
     var(--gold) var(--p, 0%),
-    rgb(var(--paper-rgb) / 0.25) var(--p, 0%)
+    rgb(var(--on-ink-rgb) / 0.25) var(--p, 0%)
   );
 }
 .np input[type="range"]::-moz-range-track {
   height: 3px;
   border-radius: 2px;
-  background: rgb(var(--paper-rgb) / 0.25);
+  background: rgb(var(--on-ink-rgb) / 0.25);
 }
 .np input[type="range"]::-moz-range-progress {
   height: 3px;
@@ -1158,7 +1173,7 @@
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  background: rgb(var(--paper-rgb));
+  background: rgb(var(--on-ink-rgb));
   margin-top: -5px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
@@ -1167,7 +1182,7 @@
   height: 13px;
   border: none;
   border-radius: 50%;
-  background: rgb(var(--paper-rgb));
+  background: rgb(var(--on-ink-rgb));
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 }
 .np-volume {
@@ -1175,7 +1190,7 @@
   align-items: center;
   gap: 8px;
   width: min(220px, 70%);
-  color: rgb(var(--paper-rgb) / 0.6);
+  color: rgb(var(--on-ink-rgb) / 0.6);
   margin-top: 10px;
 }
 .np-volume svg {
@@ -1202,13 +1217,13 @@
   margin-top: 12px;
 }
 .np-skip {
-  color: rgb(var(--paper-rgb) / 0.85);
+  color: rgb(var(--on-ink-rgb) / 0.85);
   display: grid;
   place-items: center;
 }
 .np-skip svg {
-  width: 26px;
-  height: 26px;
+  width: 36px;
+  height: 36px;
 }
 .np-playpause {
   width: 64px;

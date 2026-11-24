@@ -19,6 +19,7 @@ import {
   type Episode,
   type Show,
 } from "@/lib/catalog";
+import { PlaybackGuard } from "@/lib/playback";
 
 interface Current {
   show: Show;
@@ -55,15 +56,15 @@ const IconPause = () => (
   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zm6 0h4v14h-4z" /></svg>
 );
 const IconBack15 = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="11 19 2 12 11 5" /><polyline points="22 19 13 12 22 5" />
-    <text x="12" y="10" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="600">15</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4.5V1.5L8 5l4 3.5v-3a7 7 0 1 1-7 7" />
+    <text x="12" y="16" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="700">15</text>
   </svg>
 );
 const IconFwd15 = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="13 19 22 12 13 5" /><polyline points="2 19 11 12 2 5" />
-    <text x="12" y="10" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="600">15</text>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4.5V1.5L16 5l-4 3.5v-3a7 7 0 1 0 7 7" />
+    <text x="12" y="16" textAnchor="middle" fontSize="7.5" fill="currentColor" stroke="none" fontWeight="700">15</text>
   </svg>
 );
 const IconChevronDown = () => (
@@ -121,6 +122,7 @@ export default function Page() {
   const [npOpen, setNpOpen] = useState(false);
   const [resume, setResume] = useState<ResumeEntry | null>(null);
   const lastResumeSave = useRef(0);
+  const savedPosRef = useRef(0);
 
   const isLive = current?.show.isLive ?? false;
 
@@ -194,26 +196,33 @@ export default function Page() {
 
   // ---------- Playback ----------
 
-  const playURL = useCallback((url: string, seekTo?: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.src = url;
-    setElapsed(0);
-    setDuration(0);
-    setConnecting(true);
-    setPlayError(false);
-    if (seekTo && seekTo > 0) {
-      const onMeta = () => {
-        audio.currentTime = seekTo;
-        audio.removeEventListener("loadedmetadata", onMeta);
-      };
-      audio.addEventListener("loadedmetadata", onMeta);
+  // Recovery-aware playback (token-guarded loads, stall reload) lives in
+  // lib/playback.ts so it can be unit tested.
+  const guardRef = useRef<PlaybackGuard | null>(null);
+  const getGuard = () => {
+    if (!guardRef.current && audioRef.current) {
+      guardRef.current = new PlaybackGuard(audioRef.current, {
+        onConnecting: () => { setConnecting(true); setPlayError(false); },
+        onFailed: () => { setConnecting(false); setPlayError(true); },
+        onNeedsTap: () => setConnecting(false),
+      });
     }
-    // Surface failures instead of dying silently
-    audio.play().catch(() => {
-      setConnecting(false);
-      setPlayError(true);
-    });
+    return guardRef.current;
+  };
+  const clearStall = () => guardRef.current?.clearStall();
+
+  const playURL = useCallback((url: string, seekTo?: number) => {
+    const guard = getGuard();
+    if (!guard) return;
+    savedPosRef.current = seekTo && seekTo > 0 ? seekTo : 0;
+    setElapsed(seekTo && seekTo > 0 ? seekTo : 0);
+    setDuration(0);
+    guard.load(url, seekTo ?? 0);
+  }, []);
+
+  const resumeAudio = useCallback(() => {
+    const live = currentRef.current?.show.isLive ?? false;
+    getGuard()?.resume(live, savedPosRef.current);
   }, []);
 
   const playLive = useCallback(() => {
@@ -239,7 +248,7 @@ export default function Page() {
       else playLive();
       return;
     }
-    if (audio.paused) audio.play().catch(() => {});
+    if (audio.paused) resumeAudio();
     else audio.pause();
   }
 
@@ -257,11 +266,20 @@ export default function Page() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onPlay = () => { setIsPlaying(true); setIsBuffering(false); setConnecting(false); };
-    const onPause = () => setIsPlaying(false);
+    const onPlay = () => { clearStall(); setIsPlaying(true); setIsBuffering(false); setConnecting(false); };
+    const onPause = () => {
+      if (audio.currentTime > 0) savedPosRef.current = audio.currentTime;
+      const cur = currentRef.current;
+      if (cur?.episode && audio.currentTime > 30 && (!audio.duration || audio.currentTime < audio.duration - 60)) {
+        saveResume(cur, audio.currentTime);
+      }
+      setIsPlaying(false);
+    };
+    const onSync = () => { setIsPlaying(!audio.paused && !audio.ended); };
     const onWaiting = () => setIsBuffering(true);
     const onTime = () => {
       setElapsed(audio.currentTime);
+      if (audio.currentTime > 0) savedPosRef.current = audio.currentTime;
       // Save resume position ~every 5s (>30s in, >60s left — kit semantics)
       const cur = currentRef.current;
       if (
@@ -297,7 +315,13 @@ export default function Page() {
     audio.addEventListener("loadedmetadata", onDur);
     audio.addEventListener("ended", onEnded);
     audio.addEventListener("error", onError);
+    audio.addEventListener("canplay", () => setIsBuffering(false));
+    // iOS can change playback state while the page is hidden/locked
+    document.addEventListener("visibilitychange", onSync);
+    window.addEventListener("pageshow", onSync);
     return () => {
+      document.removeEventListener("visibilitychange", onSync);
+      window.removeEventListener("pageshow", onSync);
       audio.removeEventListener("play", onPlay);
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("waiting", onWaiting);
@@ -408,9 +432,11 @@ export default function Page() {
   }
 
   function clearResume() {
-    ["showSlug", "audioURL", "title", "number", "date", "position"].forEach((k) =>
-      localStorage.removeItem(`resume.${k}`)
-    );
+    try {
+      ["showSlug", "audioURL", "title", "number", "date", "position"].forEach((k) =>
+        localStorage.removeItem(`resume.${k}`)
+      );
+    } catch {}
     setResume(null);
   }
 
@@ -438,7 +464,7 @@ export default function Page() {
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const ms = navigator.mediaSession;
-    ms.setActionHandler("play", () => audioRef.current?.play().catch(() => {}));
+    ms.setActionHandler("play", () => resumeAudio());
     ms.setActionHandler("pause", () => audioRef.current?.pause());
     ms.setActionHandler("seekbackward", () => !isLive && skip(-15));
     ms.setActionHandler("seekforward", () => !isLive && skip(15));
@@ -544,11 +570,12 @@ export default function Page() {
         {/* Sidebar / mobile root */}
         <aside className={`side${!isWide && selected ? " off" : ""}`}>
           {/* Masthead hero */}
-          <button
-            className="hero"
-            onClick={() => selectShow(liveShow)}
-            aria-label="Monocle 24 live"
-          >
+          <div className="hero">
+            <button
+              className="hero-open"
+              onClick={() => selectShow(liveShow)}
+              aria-label="Monocle 24 live"
+            />
             <span className="hero-art">
               <img src={liveShow.coverURL} alt="" />
               <span className={`hero-live${isLive && isPlaying ? " on" : ""}`}>
@@ -563,23 +590,13 @@ export default function Page() {
                   {onAirIdx >= 0 ? schedule[onAirIdx].title : liveShow.description}
                 </span>
               </span>
-              <span
+              <button
+                type="button"
                 className="play-btn"
-                role="button"
-                tabIndex={0}
                 aria-label={isLive && isPlaying ? "Pause live stream" : "Play live stream"}
-                onClick={(e) => {
-                  e.stopPropagation();
+                onClick={() => {
                   if (isLive) togglePlayPause();
                   else playLive();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (isLive) togglePlayPause();
-                    else playLive();
-                  }
                 }}
               >
                 {connecting && isLive ? (
@@ -589,9 +606,9 @@ export default function Page() {
                 ) : (
                   <IconPlay />
                 )}
-              </span>
+              </button>
             </span>
-          </button>
+          </div>
 
           {/* Continue listening */}
           {resume && (
