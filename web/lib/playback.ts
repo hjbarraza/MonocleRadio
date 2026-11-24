@@ -67,7 +67,7 @@ export class PlaybackGuard {
       if (token !== this.token) return; // superseded by a newer load
       const name = (err as { name?: string })?.name;
       if (name === "AbortError") return; // interrupted by a newer load()/pause()
-      if (name === "NotAllowedError") return this.cb.onNeedsTap();
+      if (name === "NotAllowedError") { this.clearStall(); return this.cb.onNeedsTap(); }
       this.cb.onFailed();
     });
   }
@@ -113,7 +113,7 @@ export class PlaybackGuard {
     a.play().catch((err: unknown) => {
       const name = (err as { name?: string })?.name;
       if (name === "AbortError" || token !== this.token) return;
-      if (name === "NotAllowedError") return this.cb.onNeedsTap();
+      if (name === "NotAllowedError") { this.clearStall(); return this.cb.onNeedsTap(); }
       reload();
     });
     // play() that resolves/hangs without starting is the iOS stall case
