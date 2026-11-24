@@ -116,6 +116,7 @@
 /* ---------- Masthead hero (the front page's cover) ---------- */
 
 .hero {
+  position: relative;
   margin: 14px;
   margin-bottom: 6px;
   border-radius: 12px;
@@ -127,6 +128,19 @@
   display: block;
   transition: transform 0.25s ease-out;
 }
+/* Stretched button: whole hero opens the live pane; the play button sits above it */
+.hero-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  border-radius: inherit;
+}
+.hero .play-btn {
+  position: relative;
+  z-index: 2;
+}
+
 .hero:active {
   transform: scale(0.985);
 }
