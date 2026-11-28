@@ -7,7 +7,7 @@
 
 APP_NAME      := Monocle Radio
 BUNDLE_ID     := com.monocle.radio
-VERSION       := 1.1.0
+VERSION       := 1.2.0
 BUILD_DIR     := build
 APP_BUNDLE    := $(BUILD_DIR)/$(APP_NAME).app
 CONTENTS_DIR  := $(APP_BUNDLE)/Contents
@@ -25,6 +25,9 @@ app:
 	@echo "[████████████████░░░░░░░░░░░░░░░░░░░░░░░░░] 40% Creating .app bundle..."
 	@mkdir -p "$(CONTENTS_DIR)/MacOS" "$(CONTENTS_DIR)/Resources"
 	@cp .build/release/MonocleRadio "$(CONTENTS_DIR)/MacOS/MonocleRadio"
+	@# SwiftPM resource bundle (Bundle.module looks in Contents/Resources)
+	@rm -rf "$(CONTENTS_DIR)/Resources/MonocleRadio_MonocleRadio.bundle"
+	@cp -R .build/release/MonocleRadio_MonocleRadio.bundle "$(CONTENTS_DIR)/Resources/"
 	@# Copy app icon if built (run scripts/gen_icon.py to generate)
 	@test -f build/icon/AppIcon.icns && cp build/icon/AppIcon.icns "$(CONTENTS_DIR)/Resources/" || true
 	@/usr/libexec/PlistBuddy -c "Clear dict" "$(CONTENTS_DIR)/Info.plist" 2>/dev/null; true
