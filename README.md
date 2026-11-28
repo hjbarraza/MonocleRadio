@@ -1,16 +1,19 @@
+![Monocle Radio on the web, iPhone and the macOS menu bar](assets/banner.png)
+
 # Monocle Radio
 
-Native macOS menu bar radio player for [Monocle 24](https://monocle.com/radio/).
+Native macOS menu bar radio player for [Monocle 24](https://monocle.com/radio/),
+plus a web app at [monocle.yuno.to](https://monocle.yuno.to).
 
 Live stream and on-demand episodes — one click from your menu bar.
 
-![Monocle Radio](screenshot.png)
+See [CHANGELOG.md](CHANGELOG.md) for what's new.
 
 ## Install
 
 **Requirements:** macOS 14 (Sonoma) or later.
 
-1. Download `MonocleRadio-1.0.0.dmg` from [Releases](https://github.com/hjbarraza/MonocleRadio/releases)
+1. Download `MonocleRadio-1.2.0.dmg` from [Releases](https://github.com/hjbarraza/MonocleRadio/releases)
 2. Open the DMG and drag **Monocle Radio** to Applications
 3. Launch from Applications
 
@@ -85,7 +88,7 @@ install expires after 7 days — re-run from Xcode to re-sign.
 git clone https://github.com/hjbarraza/MonocleRadio.git
 cd MonocleRadio
 make app    # → build/Monocle Radio.app (~5MB)
-make dmg    # → build/MonocleRadio-1.0.0.dmg (~2MB)
+make dmg    # → build/MonocleRadio-1.2.0.dmg (~2MB)
 make run    # debug build and run
 ```
 
@@ -93,8 +96,8 @@ Requires Xcode command line tools (`xcode-select --install`).
 
 ## Web App (PWA)
 
-`web/` contains a Next.js port of the iOS app, deployable on Vercel and
-installable on iPhone/iPad via Safari → Share → **Add to Home Screen**.
+Live at [monocle.yuno.to](https://monocle.yuno.to). `web/` contains a
+Next.js port of the iOS app, deployed on Vercel and installable on iPhone/iPad via Safari → Share → **Add to Home Screen**.
 See [web/README.md](web/README.md).
 
 ## Architecture
